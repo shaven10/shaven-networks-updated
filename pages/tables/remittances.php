@@ -226,6 +226,7 @@ $sessionID=$_SESSION['usr_id'];
                 
                     <th>Monthly(Php)</th>
                     <th>Payment Due</th>
+                    <th>Posted by</th>
                     <th>Status</th>
                   </tr>
                   </thead>
@@ -251,7 +252,7 @@ $sessionID=$_SESSION['usr_id'];
                        $PDQueryM=date_format($datenow,"F");
 
 
-                     $sql = "SELECT payment_amount,c.status as stat,payment_date,c.id as pid,c.status as stat,payment_day,payment_month,p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id FROM tbl_subs_profile as a,tbl_plans as b,tbl_payments as c,tbl_remittances as d where payment_uid=a.id and a.plan_id=b.id and d.paymentid=c.id and a.status='1'and c.status='1' and d.remit='0';";
+                     $sql = "SELECT payment_amount,c.status as stat,payment_date,c.id as pid,c.status as stat,payment_day,payment_month,p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id,sys_user_fullname FROM tbl_subs_profile as a,tbl_plans as b,tbl_payments as c,tbl_remittances as d,tbl_sys_users as e where postedby=e.id and payment_uid=a.id and a.plan_id=b.id and d.paymentid=c.id and a.status='1'and c.status='1' and d.remit='0';";
                  
                  //   $sql = "SELECT c.status as stat,payment_date,c.id as pid,c.status as stat,payment_day,payment_month,p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id FROM tbl_subs_profile as a,tbl_plans as b,tbl_payments as c where payment_uid=a.id and a.plan_id=b.id and a.status='1'and c.status='1' and YEAR(payment_date)='$PDQueryY'and MONTH(payment_date)='$PDQueryM'";
                     $result = $conn->query($sql);
@@ -278,8 +279,8 @@ $sessionID=$_SESSION['usr_id'];
                        
                         <td>".$row['payment_amount']."</td>
                        
-                        <td>".$row['payment_month'].' every '.$row['payment_day']."</td>";
-
+                        <td>".$row['payment_month'].' every '.$row['payment_day']."</td>
+                        <td>".$row['sys_user_fullname']."</td>";
                         if ($row['stat']=='1'){
 
                           echo '<td><span class="badge badge-success">Paid</span></>
@@ -315,6 +316,7 @@ $sessionID=$_SESSION['usr_id'];
                   
                     <th>Monthly(Php)</th>
                     <th>Payment Due</th>
+                    <th>Posted by</th>
                     <th>Status</th>
                   </tr>
                   </tfoot>

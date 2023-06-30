@@ -238,7 +238,7 @@ else{
             <ol class="breadcrumb float-sm-right">
               <li class="breadcrumb-item"><a href="#">Home</a></li>
               <li class="breadcrumb-item active">Dashboard v1</li>
-              <li class="breadcrumb-item active"><FONT COLOR='GREEN'><B>Wallet: &#8369<?php include('wallet.php'); ?></B></FONT></li>
+              <li class="breadcrumb-item active"><FONT COLOR='GREEN'><B><a href='./pages/tables/collections_posted.php'>Wallet: &#8369<?php include('wallet.php'); ?></a></B></FONT></li>
             </ol>
           </div><!-- /.col -->
         </div><!-- /.row -->

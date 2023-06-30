@@ -228,7 +228,8 @@ $SName=$_SESSION['fullname'];
             <div class="card">
            
               <div class="card-header">
-             
+             <!-- hide sa kay gechange into actual collection
+
               <form action='' method='post'>
               <div class="input-group mb-3">
                   <div class="input-group-prepend">
@@ -236,10 +237,12 @@ $SName=$_SESSION['fullname'];
                     <a href=""><button  type="button" class="btn btn-warning">All Records</button></a>
                     <button  name='filter' type="submit" class="btn btn-info">Filter Records</button>
                   </div>
-                  <!-- /btn-group -->
+                 
                   <input type="month" name='d1' class="form-control" required>
                 </div>
               </form>
+
+      -->
         
               </div>
               
@@ -290,10 +293,10 @@ $SName=$_SESSION['fullname'];
 
 
 
-                   $sql = "SELECT payment_amount,c.status as stat,payment_date,c.id as pid,c.status as stat,payment_day,payment_month,p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id FROM tbl_subs_profile as a,tbl_plans as b,tbl_payments as c where payment_uid=a.id and a.plan_id=b.id and a.status='1'and c.status='1' and YEAR(payment_date)='$D11' and MONTH(payment_date)='$D12' and postedby='$sessionID'";
+                   $sql = "SELECT payment_amount,c.status as stat,payment_date,c.id as pid,c.status as stat,payment_day,payment_month,p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id FROM tbl_subs_profile as a,tbl_plans as b,tbl_payments as c,tbl_remittances as d where d.paymentid=c.id and remit='0' and payment_uid=a.id and a.plan_id=b.id and a.status='1'and c.status='1' and YEAR(payment_date)='$D11' and MONTH(payment_date)='$D12' and postedby='$sessionID'";
                   $statTEXT='<i>Showing records for the month of <font color="green">'.$D111.'</font> ';
                   }else{
-                    $sql = "SELECT payment_amount,c.status as stat,payment_date,c.id as pid,c.status as stat,payment_day,payment_month,p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id FROM tbl_subs_profile as a,tbl_plans as b,tbl_payments as c where payment_uid=a.id and a.plan_id=b.id and a.status='1'and c.status='1' and postedby='$sessionID'";
+                    $sql = "SELECT payment_amount,c.status as stat,payment_date,c.id as pid,c.status as stat,payment_day,payment_month,p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id FROM tbl_subs_profile as a,tbl_plans as b,tbl_payments as c,tbl_remittances as d where d.paymentid=c.id and remit='0' and payment_uid=a.id and a.plan_id=b.id and a.status='1'and c.status='1' and postedby='$sessionID'";
                     $statTEXT='<i>Showing all records from the database';
                   }
                   
