@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../includes/guard.php';
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 if(!isset($_SESSION['usr_id']))
 {
 	header("location:login.php");
@@ -29,152 +30,18 @@ $sessionID=$_SESSION['usr_id'];
   <link rel="stylesheet" href="../../plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
   <link rel="stylesheet" href="../../plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
   <link rel="stylesheet" href="../../plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
+  <link rel="stylesheet" href="../../dist/css/shaven-records.css">
   <!-- Theme style -->
   <link rel="stylesheet" href="../../dist/css/adminlte.min.css">
 </head>
 <body class="hold-transition sidebar-mini">
 <div class="wrapper">
-  <!-- Navbar -->
-  <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-    <!-- Left navbar links -->
-    <ul class="navbar-nav">
-      <li class="nav-item">
-        <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
-      </li>
-      <li class="nav-item d-none d-sm-inline-block">
-        <a href="../../index.php" class="nav-link">Home</a>
-      </li>
-      <li class="nav-item d-none d-sm-inline-block">
-      </li>
-    </ul>
-
-    <!-- Right navbar links -->
-    <ul class="navbar-nav ml-auto">
-      <!-- Navbar Search -->
-      <li class="nav-item">
-        <a class="nav-link" data-widget="navbar-search" href="#" role="button">
-          <i class="fas fa-search"></i>
-        </a>
-        <div class="navbar-search-block">
-          <form class="form-inline">
-            <div class="input-group input-group-sm">
-              <input class="form-control form-control-navbar" type="search" placeholder="Search" aria-label="Search">
-              <div class="input-group-append">
-                <button class="btn btn-navbar" type="submit">
-                  <i class="fas fa-search"></i>
-                </button>
-                <button class="btn btn-navbar" type="button" data-widget="navbar-search">
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </li>
-
-      <!-- Messages Dropdown Menu -->
-      <li class="nav-item dropdown">
-        <a class="nav-link" data-toggle="dropdown" href="#">
-          <i class="far fa-comments"></i>
-          <span class="badge badge-danger navbar-badge">3</span>
-        </a>
-        <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-          <a href="#" class="dropdown-item">
-            <!-- Message Start -->
-            <div class="media">
-              <img src="../../dist/img/user1-128x128.jpg" alt="User Avatar" class="img-size-50 mr-3 img-circle">
-              <div class="media-body">
-                <h3 class="dropdown-item-title">
-                  Brad Diesel
-                  <span class="float-right text-sm text-danger"><i class="fas fa-star"></i></span>
-                </h3>
-                <p class="text-sm">Call me whenever you can...</p>
-                <p class="text-sm text-muted"><i class="far fa-clock mr-1"></i> 4 Hours Ago</p>
-              </div>
-            </div>
-            <!-- Message End -->
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <!-- Message Start -->
-            <div class="media">
-              <img src="../../dist/img/user8-128x128.jpg" alt="User Avatar" class="img-size-50 img-circle mr-3">
-              <div class="media-body">
-                <h3 class="dropdown-item-title">
-                  John Pierce
-                  <span class="float-right text-sm text-muted"><i class="fas fa-star"></i></span>
-                </h3>
-                <p class="text-sm">I got your message bro</p>
-                <p class="text-sm text-muted"><i class="far fa-clock mr-1"></i> 4 Hours Ago</p>
-              </div>
-            </div>
-            <!-- Message End -->
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <!-- Message Start -->
-            <div class="media">
-              <img src="../../dist/img/user3-128x128.jpg" alt="User Avatar" class="img-size-50 img-circle mr-3">
-              <div class="media-body">
-                <h3 class="dropdown-item-title">
-                  Nora Silvester
-                  <span class="float-right text-sm text-warning"><i class="fas fa-star"></i></span>
-                </h3>
-                <p class="text-sm">The subject goes here</p>
-                <p class="text-sm text-muted"><i class="far fa-clock mr-1"></i> 4 Hours Ago</p>
-              </div>
-            </div>
-            <!-- Message End -->
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item dropdown-footer">See All Messages</a>
-        </div>
-      </li>
-      <!-- Notifications Dropdown Menu -->
-      <li class="nav-item dropdown">
-        <a class="nav-link" data-toggle="dropdown" href="#">
-          <i class="far fa-bell"></i>
-          <span class="badge badge-warning navbar-badge">15</span>
-        </a>
-        <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-          <span class="dropdown-item dropdown-header">15 Notifications</span>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <i class="fas fa-envelope mr-2"></i> 4 new messages
-            <span class="float-right text-muted text-sm">3 mins</span>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <i class="fas fa-users mr-2"></i> 8 friend requests
-            <span class="float-right text-muted text-sm">12 hours</span>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <i class="fas fa-file mr-2"></i> 3 new reports
-            <span class="float-right text-muted text-sm">2 days</span>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item dropdown-footer">See All Notifications</a>
-        </div>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-widget="fullscreen" href="#" role="button">
-          <i class="fas fa-expand-arrows-alt"></i>
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-widget="control-sidebar" data-slide="true" href="#" role="button">
-          <i class="fas fa-th-large"></i>
-        </a>
-      </li>
-    </ul>
-  </nav>
-  <!-- /.navbar -->
+  <?php require __DIR__ . '/../../includes/topnav.php'; ?>
 
   <!-- Main Sidebar Container -->
   <aside class="main-sidebar sidebar-dark-primary elevation-4">
     <!-- Brand Logo -->
-    <a href="../../index3.html" class="brand-link">
+    <a href="<?php echo h(shaven_url('index.php')); ?>" class="brand-link">
       <img src="../../dist/img/AdminLTELogo.png" alt="AdminLTE Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
       <span class="brand-text font-weight-light">SHAVEN Networks</span>
     </a>
@@ -229,11 +96,11 @@ $sessionID=$_SESSION['usr_id'];
               </div>
               <!-- /.card-header -->
               <div class="card-body">
-                <table id="example1" class="table table-bordered table-striped">
+                <table id="example1" class="table table-bordered table-striped" data-install-order="0">
                   <thead>
                   <tr>
                  
-                 <!-- <th colspan='2'>Date of Installation</th>-->
+                    <th>Date of Installation</th>
                     <th>Subscriber Name</th>
                  
                     <th>Monthly Payment</th>
@@ -257,7 +124,7 @@ $sessionID=$_SESSION['usr_id'];
 
                     echo' <script>
                     function confirmDelete(link) {
-                        if (confirm("Proceed to advance payment module?")) {
+                        if (confirm("Open this subscriber in Post Payment?")) {
                             doAjax(link.href, "POST"); // doAjax needs to send the "confirm" field
                               }
                               return false;
@@ -267,7 +134,7 @@ $sessionID=$_SESSION['usr_id'];
 
 
 
-                    $sql = "SELECT p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id FROM tbl_subs_profile as a,tbl_plans as b where a.plan_id=b.id and a.status='1'";
+                    $sql = "SELECT p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id FROM tbl_subs_profile as a,tbl_plans as b where a.plan_id=b.id and a.status='1' order by a.s_doi asc, a.s_name asc";
                     $result = $conn->query($sql);
                     if ($result->num_rows > 0) {
                       // output data of each row
@@ -283,23 +150,39 @@ $sessionID=$_SESSION['usr_id'];
                       $days = (int)abs($difference/(60 * 60)/24);
                      // echo "<br/>The difference between ".$DateofToday1." and ".$dofinstallation." is ".$days." days.";
                      // <td>".$row['id']."</td>
-                      
+                    
 
                       echo "<tr>
-                 
-                     
+                    ".shaven_install_cell($row['s_doi'])."
                     <td>".$row['s_name']."</td>
                     <td>".$row['p_monthly_amount']."</td>
                         <td>".$row['p_name'].' ('.$row['p_speed_kb']. 'kb)'."</td>";
-                        
-                            
-                        echo '<td><a onclick="return confirmDelete(this);" href="../forms/advance_payment.php?uid='.$row["id"].'"><span class="badge badge-info">Advance Payment</span></></td>';
+
+                        $sql11 = "SELECT count(*) as a from tbl_payments where payment_uid='$pid' and status='0'";
+                        $result11 = $conn->query($sql11);
+                        if ($result11->num_rows > 0) {
+                          while($row111 = $result11->fetch_assoc()) {
+                              $pendingpaymentcounter=$row111['a'];
+                            }
+                          }
+
+                        if ($pendingpaymentcounter > 0) {
+                          echo '<td><span class="badge badge-warning">Settle your existing balance first</span></></td>';
+                        }else{
+                          echo '<td><a href="collections.php?uid='.(int)$row["id"].'#pay-desk"><span class="badge badge-info">Post Payment</span></a></td>';
+                
+                        }
+                      
+                     
+                     
                         $payment_day=date_format($date,"d");
                          $p_amount=$row['p_monthly_amount'];
 
                      
                       }
-                    } else {
+                    }
+                    
+                     else {
                       echo "0 results";
                     }
                   
@@ -345,6 +228,9 @@ $sessionID=$_SESSION['usr_id'];
 <script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- DataTables  & Plugins -->
 <script src="../../plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="../../plugins/datatables-rowgroup/js/dataTables.rowGroup.min.js"></script>
+<script src="../../dist/js/shaven-groups.js"></script>
+<script src="../../dist/js/shaven-records.js"></script>
 <script src="../../plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
 <script src="../../plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
 <script src="../../plugins/datatables-responsive/js/responsive.bootstrap4.min.js"></script>

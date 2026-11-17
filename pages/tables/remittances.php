@@ -1,420 +1,266 @@
 <?php
-session_start();
-if(!isset($_SESSION['usr_id']))
-{
-	header("location:login.php");
+require_once __DIR__ . '/../../includes/bootstrap.php';
+require_once __DIR__ . '/../../includes/layout.php';
+shaven_web_boot(true);
+
+if (!shaven_role_is(1, 2, 3)) {
+    shaven_redirect('/index.php?denied=1');
 }
-$sessionID=$_SESSION['usr_id'];
 
+$userId = (int)($_SESSION['usr_id'] ?? 0);
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!shaven_csrf_ok()) {
+        shaven_flash_set('The remittance form expired. Submit it again.', 'err');
+        shaven_redirect('/pages/tables/remittances.php');
+    }
+    $action = (string)($_POST['remit_action'] ?? '');
+    if ($action === 'submit') {
+        $result = shaven_remit_submit_batch($conn, $userId, $_POST['payment_ids'] ?? []);
+        if ($result['ok']) {
+            $result['error'] = 'Submitted batch ' . $result['ref'] . ' with ' . (int)$result['count'] . ' payment' . ((int)$result['count'] === 1 ? '' : 's') . ' totaling ₱' . number_format((float)$result['amount'], 2) . '. An admin confirms it before the cash is recorded as received.';
+        }
+    } elseif ($action === 'confirm') {
+        $result = shaven_remit_confirm_batch($conn, $userId, (int)($_POST['batch_id'] ?? 0));
+        if ($result['ok']) {
+            $result['error'] = 'Confirmed ' . $result['ref'] . '. ' . (int)$result['count'] . ' payment' . ((int)$result['count'] === 1 ? '' : 's') . ' totaling ₱' . number_format((float)$result['amount'], 2) . ' recorded as received.';
+        }
+    } else {
+        $result = ['ok' => false, 'error' => 'That remittance action is not available.'];
+    }
+    shaven_flash_set($result['error'], $result['ok'] ? 'ok' : 'err');
+    shaven_redirect('/pages/tables/remittances.php');
+}
 
-  //date of today
-  $datenow=date_create('Asia/Taipei');
-  $DateofToday= date_format($datenow,"m-d-Y");
-  $DofToday= date_format($datenow,"d");
-  $MonthofToday= date_format($datenow,"F");
-  //end
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SHAVEN Networks | Remittances</title>
+$held = shaven_remit_held($conn, $userId);
+$mine = shaven_remit_batches_for($conn, $userId);
+$canConfirm = shaven_role_is(1, 2);
+$pending = $canConfirm ? shaven_remit_pending($conn, $userId) : [];
+$field = $canConfirm ? shaven_remit_field_holding($conn) : [];
 
-  <!-- Google Font: Source Sans Pro -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
-  <!-- Font Awesome -->
-  <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
-  <!-- DataTables -->
-  <link rel="stylesheet" href="../../plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
-  <link rel="stylesheet" href="../../plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
-  <link rel="stylesheet" href="../../plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
-  <!-- Theme style -->
-  <link rel="stylesheet" href="../../dist/css/adminlte.min.css">
-</head>
-<body class="hold-transition sidebar-mini">
-<div class="wrapper">
-  <!-- Navbar -->
-  <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-    <!-- Left navbar links -->
-    <ul class="navbar-nav">
-      <li class="nav-item">
-        <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
-      </li>
-      <li class="nav-item d-none d-sm-inline-block">
-        <a href="../../index.php" class="nav-link">Home</a>
-      </li>
-      <li class="nav-item d-none d-sm-inline-block">
-      </li>
-    </ul>
-
-    <!-- Right navbar links -->
-    <ul class="navbar-nav ml-auto">
-      <!-- Navbar Search -->
-      <li class="nav-item">
-        <a class="nav-link" data-widget="navbar-search" href="#" role="button">
-          <i class="fas fa-search"></i>
-        </a>
-        <div class="navbar-search-block">
-          <form class="form-inline">
-            <div class="input-group input-group-sm">
-              <input class="form-control form-control-navbar" type="search" placeholder="Search" aria-label="Search">
-              <div class="input-group-append">
-                <button class="btn btn-navbar" type="submit">
-                  <i class="fas fa-search"></i>
-                </button>
-                <button class="btn btn-navbar" type="button" data-widget="navbar-search">
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </li>
-
-      <!-- Messages Dropdown Menu -->
-      <li class="nav-item dropdown">
-        <a class="nav-link" data-toggle="dropdown" href="#">
-          <i class="far fa-comments"></i>
-          <span class="badge badge-danger navbar-badge">3</span>
-        </a>
-        <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-          <a href="#" class="dropdown-item">
-            <!-- Message Start -->
-            <div class="media">
-              <img src="../../dist/img/user1-128x128.jpg" alt="User Avatar" class="img-size-50 mr-3 img-circle">
-              <div class="media-body">
-                <h3 class="dropdown-item-title">
-                  Brad Diesel
-                  <span class="float-right text-sm text-danger"><i class="fas fa-star"></i></span>
-                </h3>
-                <p class="text-sm">Call me whenever you can...</p>
-                <p class="text-sm text-muted"><i class="far fa-clock mr-1"></i> 4 Hours Ago</p>
-              </div>
-            </div>
-            <!-- Message End -->
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <!-- Message Start -->
-            <div class="media">
-              <img src="../../dist/img/user8-128x128.jpg" alt="User Avatar" class="img-size-50 img-circle mr-3">
-              <div class="media-body">
-                <h3 class="dropdown-item-title">
-                  John Pierce
-                  <span class="float-right text-sm text-muted"><i class="fas fa-star"></i></span>
-                </h3>
-                <p class="text-sm">I got your message bro</p>
-                <p class="text-sm text-muted"><i class="far fa-clock mr-1"></i> 4 Hours Ago</p>
-              </div>
-            </div>
-            <!-- Message End -->
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <!-- Message Start -->
-            <div class="media">
-              <img src="../../dist/img/user3-128x128.jpg" alt="User Avatar" class="img-size-50 img-circle mr-3">
-              <div class="media-body">
-                <h3 class="dropdown-item-title">
-                  Nora Silvester
-                  <span class="float-right text-sm text-warning"><i class="fas fa-star"></i></span>
-                </h3>
-                <p class="text-sm">The subject goes here</p>
-                <p class="text-sm text-muted"><i class="far fa-clock mr-1"></i> 4 Hours Ago</p>
-              </div>
-            </div>
-            <!-- Message End -->
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item dropdown-footer">See All Messages</a>
-        </div>
-      </li>
-      <!-- Notifications Dropdown Menu -->
-      <li class="nav-item dropdown">
-        <a class="nav-link" data-toggle="dropdown" href="#">
-          <i class="far fa-bell"></i>
-          <span class="badge badge-warning navbar-badge">15</span>
-        </a>
-        <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-          <span class="dropdown-item dropdown-header">15 Notifications</span>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <i class="fas fa-envelope mr-2"></i> 4 new messages
-            <span class="float-right text-muted text-sm">3 mins</span>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <i class="fas fa-users mr-2"></i> 8 friend requests
-            <span class="float-right text-muted text-sm">12 hours</span>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <i class="fas fa-file mr-2"></i> 3 new reports
-            <span class="float-right text-muted text-sm">2 days</span>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item dropdown-footer">See All Notifications</a>
-        </div>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-widget="fullscreen" href="#" role="button">
-          <i class="fas fa-expand-arrows-alt"></i>
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-widget="control-sidebar" data-slide="true" href="#" role="button">
-          <i class="fas fa-th-large"></i>
-        </a>
-      </li>
-    </ul>
-  </nav>
-  <!-- /.navbar -->
-
-  <!-- Main Sidebar Container -->
-  <aside class="main-sidebar sidebar-dark-primary elevation-4">
-    <!-- Brand Logo -->
-    <a href="../../index3.html" class="brand-link">
-      <img src="../../dist/img/AdminLTELogo.png" alt="AdminLTE Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
-      <span class="brand-text font-weight-light">SHAVEN Networks</span>
-    </a>
-
-    <?php include('../../navigation.sub.php')?>
-  </aside>
-
-  <!-- Content Wrapper. Contains page content -->
-  <div class="content-wrapper">
-    <!-- Content Header (Page header) -->
-    <section class="content-header">
-      <div class="container-fluid">
-        <div class="row mb-2">
-          <div class="col-sm-6">
-
-            <h3>Collection of Payments: <?php echo $_SESSION['fullname']; ?></h3>
-          </div>
-          <div class="col-sm-6">
-            <ol class="breadcrumb float-sm-right">
-              <li class="breadcrumb-item"><a href="#">Home</a></li>
-              <li class="breadcrumb-item active">Collection Report</li>
-            </ol>
-          </div>
-        </div>
-      </div><!-- /.container-fluid -->
-    </section>
-
-    <!-- Main content -->
-    <section class="content">
-      <div class="container-fluid">
-        <div class="row">
-          <div class="col-12">
-
-
-                
-
-            <div class="card">
-              <div class="card-header">
-              </div>
-              <!-- /.card-header -->
-              <div class="card-body">
-                <table id="example1" class="table table-bordered table-striped">
-                  <thead>
-                  <tr>
-              
-               
-                  <th>Payment Timestamp</th>
-                    <th>Subscriber Name</th>
-                
-                    <th>Monthly(Php)</th>
-                    <th>Payment Due</th>
-                    <th>Posted by</th>
-                    <th>Status</th>
-                  </tr>
-                  </thead>
-                  <tbody>
-
-                  <?php
-                      include('../../dbconnect.php');
-
-                     
-
-
-                   echo' <script>
-                    function confirmDelete(link) {
-                        if (confirm("Confirm Transaction?")) {
-                            doAjax(link.href, "POST"); // doAjax needs to send the "confirm" field
-                              }
-                              return false;
-                          }
-                      </script>';
-
-                      $PDQueryY=date_format($datenow,"Y");
-                    //  $PDQueryM=date_format($datenow,"m");
-                       $PDQueryM=date_format($datenow,"F");
-
-
-                     $sql = "SELECT payment_amount,c.status as stat,payment_date,c.id as pid,c.status as stat,payment_day,payment_month,p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id,sys_user_fullname FROM tbl_subs_profile as a,tbl_plans as b,tbl_payments as c,tbl_remittances as d,tbl_sys_users as e where postedby=e.id and payment_uid=a.id and a.plan_id=b.id and d.paymentid=c.id and a.status='1'and c.status='1' and d.remit='0';";
-                 
-                 //   $sql = "SELECT c.status as stat,payment_date,c.id as pid,c.status as stat,payment_day,payment_month,p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id FROM tbl_subs_profile as a,tbl_plans as b,tbl_payments as c where payment_uid=a.id and a.plan_id=b.id and a.status='1'and c.status='1' and YEAR(payment_date)='$PDQueryY'and MONTH(payment_date)='$PDQueryM'";
-                    $result = $conn->query($sql);
-                    if ($result->num_rows > 0) {
-                      // output data of each row
-                      while($row = $result->fetch_assoc()) {
-
-                        $billingSTAT=$row['stat'];
-                        if($billingSTAT==0){
-                          $date1='N/A';
-                        }else{
-                          $date=date_create($row['payment_date']);
-                          $date1=date_format($date,"F d, Y h:i:s");
-                        
-                        }
-
-                        
-                       // $date=date_create($row['s_doi']);
-                        $pid=$row['id'];
-                      echo "<tr>
-                     
-                      <td>".$date1."</td>
-                        <td>".$row['s_name']."</td>
-                       
-                        <td>".$row['payment_amount']."</td>
-                       
-                        <td>".$row['payment_month'].' every '.$row['payment_day']."</td>
-                        <td>".$row['sys_user_fullname']."</td>";
-                        if ($row['stat']=='1'){
-
-                          echo '<td><span class="badge badge-success">Paid</span></>
-                          <a onclick="return confirmDelete(this);" href="remittance_submit.php?payment_id='.$row["pid"].'"><span class="badge badge-success">Update Status?</span></></td>';
-   
-                        
-                        }else{
-                          echo '<td><span class="badge badge-warning">Unpaid</span></></td>';
-
-                        }
-                        echo "</tr>";
-                     //   $payment_day=date_format($date,"d");
-                    //    $p_amount=$row['p_monthly_amount'];
-                        
- 
-
-                     
-                      }
-                    } else {
-                     // echo "0 results";
-                    }
-                  
-                    $conn->close();
-                     
-                  ?>
-
-                  </tbody>
-                  <tfoot>
-                  <tr>
-             
-                  <th>Payment Timestamp</th>
-                    <th>Subscriber Name</th>
-                  
-                    <th>Monthly(Php)</th>
-                    <th>Payment Due</th>
-                    <th>Posted by</th>
-                    <th>Status</th>
-                  </tr>
-                  </tfoot>
-                </table>
-              </div>
-              <!-- /.card-body -->
-            </div>
-            <!-- /.card -->
-          </div>
-          <!-- /.col -->
-        </div>
-        <!-- /.row -->
-      </div>
-      <!-- /.container-fluid -->
-    </section>
-    <!-- /.content -->
-  </div>
-  <!-- /.content-wrapper -->
-  <footer class="main-footer">
-    <div class="float-right d-none d-sm-block">
-      <b>Version</b> 3.2.0
+function shaven_remit_rows_table(array $rows, $withPick) {
+    ?>
+    <div class="table-responsive">
+      <table class="table table-striped mb-0">
+        <thead>
+          <tr>
+            <?php if ($withPick): ?><th style="width:2.5rem;"></th><?php endif; ?>
+            <th>Subscriber</th>
+            <th>Billing period</th>
+            <th>Due date</th>
+            <th>Posted</th>
+            <th>Receipt</th>
+            <th class="text-right">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($rows as $row): ?>
+          <?php $due = shaven_due_text($row, $row['s_doi']); ?>
+          <tr>
+            <?php if ($withPick): ?>
+              <td><input class="remit-pick" type="checkbox" name="payment_ids[]" value="<?php echo (int)$row['id']; ?>"></td>
+            <?php endif; ?>
+            <td><?php echo h($row['s_name']); ?></td>
+            <td><?php echo h(shaven_bill_period_label($row, $row['s_doi'])); ?></td>
+            <td><?php echo $due !== '' ? '<span class="shaven-due-date">' . h($due) . '</span>' : '—'; ?></td>
+            <td><?php echo h(shaven_date($row['payment_date'], 'M j, Y g:i A')); ?></td>
+            <td><?php echo h($row['rf']); ?></td>
+            <td class="text-right"><?php echo shaven_peso($row['payment_amount']); ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
     </div>
-    <strong>Copyright &copy; 2014-2021 <a href="https://adminlte.io">AdminLTE.io</a>.</strong> All rights reserved.
-  </footer>
+    <?php
+}
 
-  <!-- Control Sidebar -->
-  <aside class="control-sidebar control-sidebar-dark">
-    <!-- Control sidebar content goes here -->
-  </aside>
-  <!-- /.control-sidebar -->
+function shaven_remit_batch_tools(array $batches) {
+    foreach ($batches as $batch) {
+        if (empty($batch['items'])) {
+            continue;
+        }
+        ?>
+        <div class="card-tools">
+          <span class="shaven-group-tools">
+            <button type="button" class="btn btn-sm btn-default" data-remit-batches="expand">Expand all</button>
+            <button type="button" class="btn btn-sm btn-default" data-remit-batches="collapse">Collapse all</button>
+          </span>
+        </div>
+        <?php
+        return;
+    }
+}
+
+function shaven_remit_batch_panel(array $batch, $withConfirm) {
+    $count = (int)($batch['live_count'] ?? 0);
+    $hasItems = !empty($batch['items']);
+    $status = (string)($batch['status'] ?? '');
+    ?>
+    <div class="shaven-remit-batch border rounded mb-3<?php echo $hasItems ? ' shaven-group-collapsed' : ''; ?>">
+      <div class="shaven-remit-batch-head">
+        <?php if ($hasItems): ?>
+        <button type="button" class="shaven-remit-batch-toggle" aria-expanded="false" title="Show payments">
+        <?php else: ?>
+        <div class="shaven-remit-batch-summary">
+        <?php endif; ?>
+          <span class="shaven-remit-batch-title">
+            <strong class="<?php echo $hasItems ? 'shaven-group-name' : ''; ?>"><?php echo h($batch['ref']); ?></strong>
+            <?php if ($status === 'confirmed'): ?>
+              <span class="badge badge-success">Confirmed</span>
+            <?php elseif ($status === 'pending' && !$withConfirm): ?>
+              <span class="badge badge-warning">Waiting for an admin</span>
+            <?php endif; ?>
+          </span>
+          <span class="shaven-remit-batch-meta">
+            <?php if ($withConfirm): ?><?php echo h($batch['collector'] ?? ''); ?> submitted<?php else: ?>Submitted<?php endif; ?>
+            <?php echo h(shaven_date($batch['submitted_at'], 'M j, Y g:i A')); ?>
+            · <?php echo $count; ?> payment<?php echo $count === 1 ? '' : 's'; ?>
+            · <?php echo shaven_peso($batch['live_amount'] ?? 0); ?>
+            <?php if ($status === 'confirmed' && !empty($batch['confirmer'])): ?>
+              · confirmed by <?php echo h($batch['confirmer']); ?>
+              <?php echo h(shaven_date($batch['confirmed_at'] ?? '', 'M j, Y g:i A')); ?>
+            <?php endif; ?>
+          </span>
+        <?php if ($hasItems): ?>
+        </button>
+        <?php else: ?>
+        </div>
+        <?php endif; ?>
+        <?php if ($withConfirm): ?>
+          <form method="post" class="mb-0" onsubmit="return confirm('Confirm this remittance batch? The cash is recorded as received.');">
+            <input type="hidden" name="csrf" value="<?php echo h(shaven_csrf_token()); ?>">
+            <input type="hidden" name="remit_action" value="confirm">
+            <input type="hidden" name="batch_id" value="<?php echo (int)$batch['id']; ?>">
+            <button class="btn btn-success" type="submit">Confirm remittance</button>
+          </form>
+        <?php endif; ?>
+      </div>
+      <?php if ($hasItems): ?>
+      <div class="shaven-remit-batch-body">
+        <?php shaven_remit_rows_table($batch['items'], false); ?>
+      </div>
+      <?php endif; ?>
+    </div>
+    <?php
+}
+
+shaven_page_open('Remittances', 'Remittances');
+?>
+<p class="text-muted">Collections stay on the account that posted them. That account submits them as one batch, and an admin confirms the batch before the cash is recorded as received.</p>
+
+<?php if ($canConfirm): ?>
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Batches waiting for confirmation</h3>
+    <?php shaven_remit_batch_tools($pending); ?>
+  </div>
+  <div class="card-body">
+    <?php if (!$pending): ?>
+      <p class="mb-0">No remittance batch is waiting for confirmation.</p>
+    <?php endif; ?>
+    <?php foreach ($pending as $batch): ?>
+      <?php shaven_remit_batch_panel($batch, true); ?>
+    <?php endforeach; ?>
+  </div>
 </div>
-<!-- ./wrapper -->
 
-<!-- jQuery -->
-<script src="../../plugins/jquery/jquery.min.js"></script>
-<!-- Bootstrap 4 -->
-<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<!-- DataTables  & Plugins -->
-<script src="../../plugins/datatables/jquery.dataTables.min.js"></script>
-<script src="../../plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
-<script src="../../plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
-<script src="../../plugins/datatables-responsive/js/responsive.bootstrap4.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/dataTables.buttons.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.bootstrap4.min.js"></script>
-<script src="../../plugins/jszip/jszip.min.js"></script>
-<script src="../../plugins/pdfmake/pdfmake.min.js"></script>
-<script src="../../plugins/pdfmake/vfs_fonts.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.html5.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.print.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.colVis.min.js"></script>
-<!-- AdminLTE App -->
-<script src="../../dist/js/adminlte.min.js"></script>
-<!-- AdminLTE for demo purposes -->
-<script src="../../dist/js/demo.js"></script>
-<!-- Page specific script -->
+<div class="card">
+  <div class="card-header"><h3 class="card-title">Technician collections not yet submitted</h3></div>
+  <div class="card-body p-0">
+    <?php if (!$field): ?>
+      <p class="p-3 mb-0">No technician is holding collections.</p>
+    <?php else: ?>
+      <table class="table table-striped mb-0">
+        <thead><tr><th>Technician</th><th>Payments</th><th class="text-right">Amount</th></tr></thead>
+        <tbody>
+        <?php foreach ($field as $row): ?>
+          <tr>
+            <td><?php echo h($row['sys_user_fullname']); ?></td>
+            <td><?php echo (int)$row['c']; ?></td>
+            <td class="text-right"><?php echo shaven_peso($row['amt']); ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
+
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Collections on your account</h3>
+  </div>
+  <div class="card-body">
+    <p>You are holding <?php echo (int)$held['count']; ?> payment<?php echo (int)$held['count'] === 1 ? '' : 's'; ?> totaling <?php echo shaven_peso($held['amount']); ?>. Select the ones to turn in and submit them as one batch.</p>
+    <?php if ((int)$held['count'] > count($held['rows'])): ?>
+      <p>This list shows the oldest <?php echo count($held['rows']); ?>. Submit this batch, then the next payments appear.</p>
+    <?php endif; ?>
+    <?php if (!$held['rows']): ?>
+      <p class="mb-0">You have no collections waiting to be submitted.</p>
+    <?php else: ?>
+      <form method="post" onsubmit="return confirm('Submit the selected collections as one remittance batch?');">
+        <input type="hidden" name="csrf" value="<?php echo h(shaven_csrf_token()); ?>">
+        <input type="hidden" name="remit_action" value="submit">
+        <div class="mb-3">
+          <label class="mb-0"><input type="checkbox" id="remit-all"> Select all in this list</label>
+        </div>
+        <?php shaven_remit_rows_table($held['rows'], true); ?>
+        <button class="btn btn-primary mt-3" type="submit">Submit batch</button>
+      </form>
+    <?php endif; ?>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Your batches</h3>
+    <?php shaven_remit_batch_tools($mine); ?>
+  </div>
+  <div class="card-body">
+    <?php if (!$mine): ?>
+      <p class="mb-0">You have not submitted a remittance batch.</p>
+    <?php endif; ?>
+    <?php foreach ($mine as $batch): ?>
+      <?php shaven_remit_batch_panel($batch, false); ?>
+    <?php endforeach; ?>
+  </div>
+</div>
 <script>
-  $(function () {
-    $("#example1").DataTable({
-      footerCallback: function (row, data, start, end, display) {
-            var api = this.api();
- 
-            // Remove the formatting to get integer data for summation
-            var intVal = function (i) {
-                return typeof i === 'string' ? i.replace(/[\Php,]/g, '') * 1 : typeof i === 'number' ? i : 0;
-            };
- 
-            // Total over all pages
-            total = api
-                .column(2)
-                .data()
-                .reduce(function (a, b) {
-                    return intVal(a) + intVal(b);
-                }, 0);
- 
-            // Total over this page
-            pageTotal = api
-                .column(2, { page: 'current' })
-                .data()
-                .reduce(function (a, b) {
-                    return intVal(a) + intVal(b);
-                }, 0);
- 
-            // Update footer
-            $(api.column(2).footer()).html('&#x20B1;' + pageTotal + ' (&#x20B1;' + total + ' total)');
-        },
-  
-      "responsive": true, "lengthChange": false, "autoWidth": false
-    }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
-    $('#example2').DataTable({
-      "paging": true,
-      "lengthChange": false,
-      "searching": false,
-      "ordering": true,
-      "info": true,
-      "autoWidth": false,
-      "responsive": true,
+document.addEventListener('DOMContentLoaded', function () {
+  function setBatch(batch, open) {
+    var toggle = batch.querySelector('.shaven-remit-batch-toggle');
+    if (!toggle) {
+      return;
+    }
+    batch.classList.toggle('shaven-group-collapsed', !open);
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggle.title = open ? 'Hide payments' : 'Show payments';
+  }
+
+  document.querySelectorAll('.shaven-remit-batch-toggle').forEach(function (toggle) {
+    toggle.addEventListener('click', function () {
+      var batch = toggle.closest('.shaven-remit-batch');
+      setBatch(batch, batch.classList.contains('shaven-group-collapsed'));
     });
   });
+
+  document.querySelectorAll('[data-remit-batches]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var open = button.getAttribute('data-remit-batches') === 'expand';
+      button.closest('.card').querySelectorAll('.shaven-remit-batch').forEach(function (batch) {
+        setBatch(batch, open);
+      });
+    });
+  });
+
+  var all = document.getElementById('remit-all');
+  if (!all) return;
+  all.addEventListener('change', function () {
+    document.querySelectorAll('.remit-pick').forEach(function (box) {
+      box.checked = all.checked;
+    });
+  });
+});
 </script>
-</body>
-</html>
+<?php
+shaven_page_close();

@@ -1,49 +1,5 @@
 <?php
-
-session_start();
-
-if(!isset($_SESSION['usr_id']))
-
-{
-
-	header("location:login.php");
-
-}
-
-$sessionID=$_SESSION['usr_id'];
-
-?>
-
-<?php
-
-
-
-  $pid= $_GET['payment_id'];
-
-  include('../../dbconnect.php');
-
-
-
-$sql = "UPDATE tbl_payments set revert='1',status='1', postedby='$sessionID',payment_date=now() WHERE id='$pid'";
-
-$result = $conn->query($sql);
-
-
-
- echo '<script>
-
-            alert("Payment Revert Successfully!!! NOTE: waiting for admin approval.");
-
-            window.location = "'.$SITE_URL.'collections_revert.php"
-
-            </script>';
-
-$conn->close();
-
-
-
-
-
-//window.location = "'.$SITE_URL.'collections.php"
-
-?>
+require_once __DIR__ . '/../../includes/bootstrap.php';
+shaven_web_boot(true);
+shaven_flash_set('Ask for a revert from Revert Payment. An admin or the owner approves it when the payment has not been remitted.', 'err');
+shaven_redirect('/pages/tables/collections_revert.php');

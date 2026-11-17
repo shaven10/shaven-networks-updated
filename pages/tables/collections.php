@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../includes/guard.php';
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 if(!isset($_SESSION['usr_id']))
 {
 	header("location:login.php");
@@ -12,6 +13,44 @@ $sessionID=$_SESSION['usr_id'];
   $DofToday= date_format($datenow,"d");
   $MonthofToday= date_format($datenow,"F");
   //end
+
+  if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay_desk'])) {
+      $deskUid = (int)($_POST['uid'] ?? 0);
+      $back = '/pages/tables/collections.php' . ($deskUid > 0 ? '?uid=' . $deskUid : '') . '#pay-desk';
+      if (!shaven_csrf_ok()) {
+          shaven_flash_set('The payment form expired. Submit it again.', 'err');
+          shaven_redirect($back);
+      }
+      $posted = shaven_counter_collect(
+          $conn,
+          $deskUid,
+          $_POST['bill_ids'] ?? [],
+          (int)($_POST['advance_months'] ?? 0),
+          (int)$_SESSION['usr_id'],
+          $_POST['advance_amount'] ?? 0,
+          $_POST['pay_medium'] ?? 'cash'
+      );
+      if (!$posted['ok']) {
+          shaven_flash_set($posted['error'], 'err');
+          shaven_redirect($back);
+      }
+      $count = count($posted['receipts']);
+      $summary = $posted['summary'] ?? ('Posted ' . $count . ' payment' . ($count === 1 ? '' : 's') . '.');
+      $summary .= ' Submit the cash in a remittance batch. An admin confirms the batch.';
+      $receiptIds = [];
+      foreach ($posted['receipts'] as $receiptId) {
+          $receiptId = (int)$receiptId;
+          if ($receiptId > 0) {
+              $receiptIds[] = $receiptId;
+          }
+      }
+      shaven_flash_set($summary, 'ok');
+      if ($receiptIds) {
+          shaven_redirect('/pages/tables/receipt.php?ids=' . implode(',', $receiptIds));
+      }
+      shaven_redirect($back);
+  }
+  $payDesk = shaven_payment_desk($conn, (int)($_GET['uid'] ?? 0));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -28,152 +67,18 @@ $sessionID=$_SESSION['usr_id'];
   <link rel="stylesheet" href="../../plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
   <link rel="stylesheet" href="../../plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
   <link rel="stylesheet" href="../../plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
+  <link rel="stylesheet" href="../../dist/css/shaven-records.css">
   <!-- Theme style -->
   <link rel="stylesheet" href="../../dist/css/adminlte.min.css">
 </head>
 <body class="hold-transition sidebar-mini">
 <div class="wrapper">
-  <!-- Navbar -->
-  <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-    <!-- Left navbar links -->
-    <ul class="navbar-nav">
-      <li class="nav-item">
-        <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
-      </li>
-      <li class="nav-item d-none d-sm-inline-block">
-        <a href="../../index.php" class="nav-link">Home</a>
-      </li>
-      <li class="nav-item d-none d-sm-inline-block">
-      </li>
-    </ul>
-
-    <!-- Right navbar links -->
-    <ul class="navbar-nav ml-auto">
-      <!-- Navbar Search -->
-      <li class="nav-item">
-        <a class="nav-link" data-widget="navbar-search" href="#" role="button">
-          <i class="fas fa-search"></i>
-        </a>
-        <div class="navbar-search-block">
-          <form class="form-inline">
-            <div class="input-group input-group-sm">
-              <input class="form-control form-control-navbar" type="search" placeholder="Search" aria-label="Search">
-              <div class="input-group-append">
-                <button class="btn btn-navbar" type="submit">
-                  <i class="fas fa-search"></i>
-                </button>
-                <button class="btn btn-navbar" type="button" data-widget="navbar-search">
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </li>
-
-      <!-- Messages Dropdown Menu -->
-      <li class="nav-item dropdown">
-        <a class="nav-link" data-toggle="dropdown" href="#">
-          <i class="far fa-comments"></i>
-          <span class="badge badge-danger navbar-badge">3</span>
-        </a>
-        <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-          <a href="#" class="dropdown-item">
-            <!-- Message Start -->
-            <div class="media">
-              <img src="../../dist/img/user1-128x128.jpg" alt="User Avatar" class="img-size-50 mr-3 img-circle">
-              <div class="media-body">
-                <h3 class="dropdown-item-title">
-                  Brad Diesel
-                  <span class="float-right text-sm text-danger"><i class="fas fa-star"></i></span>
-                </h3>
-                <p class="text-sm">Call me whenever you can...</p>
-                <p class="text-sm text-muted"><i class="far fa-clock mr-1"></i> 4 Hours Ago</p>
-              </div>
-            </div>
-            <!-- Message End -->
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <!-- Message Start -->
-            <div class="media">
-              <img src="../../dist/img/user8-128x128.jpg" alt="User Avatar" class="img-size-50 img-circle mr-3">
-              <div class="media-body">
-                <h3 class="dropdown-item-title">
-                  John Pierce
-                  <span class="float-right text-sm text-muted"><i class="fas fa-star"></i></span>
-                </h3>
-                <p class="text-sm">I got your message bro</p>
-                <p class="text-sm text-muted"><i class="far fa-clock mr-1"></i> 4 Hours Ago</p>
-              </div>
-            </div>
-            <!-- Message End -->
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <!-- Message Start -->
-            <div class="media">
-              <img src="../../dist/img/user3-128x128.jpg" alt="User Avatar" class="img-size-50 img-circle mr-3">
-              <div class="media-body">
-                <h3 class="dropdown-item-title">
-                  Nora Silvester
-                  <span class="float-right text-sm text-warning"><i class="fas fa-star"></i></span>
-                </h3>
-                <p class="text-sm">The subject goes here</p>
-                <p class="text-sm text-muted"><i class="far fa-clock mr-1"></i> 4 Hours Ago</p>
-              </div>
-            </div>
-            <!-- Message End -->
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item dropdown-footer">See All Messages</a>
-        </div>
-      </li>
-      <!-- Notifications Dropdown Menu -->
-      <li class="nav-item dropdown">
-        <a class="nav-link" data-toggle="dropdown" href="#">
-          <i class="far fa-bell"></i>
-          <span class="badge badge-warning navbar-badge">15</span>
-        </a>
-        <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-          <span class="dropdown-item dropdown-header">15 Notifications</span>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <i class="fas fa-envelope mr-2"></i> 4 new messages
-            <span class="float-right text-muted text-sm">3 mins</span>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <i class="fas fa-users mr-2"></i> 8 friend requests
-            <span class="float-right text-muted text-sm">12 hours</span>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <i class="fas fa-file mr-2"></i> 3 new reports
-            <span class="float-right text-muted text-sm">2 days</span>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item dropdown-footer">See All Notifications</a>
-        </div>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-widget="fullscreen" href="#" role="button">
-          <i class="fas fa-expand-arrows-alt"></i>
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-widget="control-sidebar" data-slide="true" href="#" role="button">
-          <i class="fas fa-th-large"></i>
-        </a>
-      </li>
-    </ul>
-  </nav>
-  <!-- /.navbar -->
+  <?php require __DIR__ . '/../../includes/topnav.php'; ?>
 
   <!-- Main Sidebar Container -->
   <aside class="main-sidebar sidebar-dark-primary elevation-4">
     <!-- Brand Logo -->
-    <a href="../../index3.html" class="brand-link">
+    <a href="<?php echo h(shaven_url('index.php')); ?>" class="brand-link">
       <img src="../../dist/img/AdminLTELogo.png" alt="AdminLTE Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
       <span class="brand-text font-weight-light">SHAVEN Networks</span>
     </a>
@@ -201,7 +106,7 @@ $sessionID=$_SESSION['usr_id'];
       <div class="container-fluid">
         <div class="row mb-2">
           <div class="col-sm-6">
-          <h1>Collection Report for the month of <?php echo $MonthofToday; ?></h1>
+          <h1>Collection: <?php echo $MonthofToday; ?></h1>
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
@@ -218,27 +123,31 @@ $sessionID=$_SESSION['usr_id'];
       <div class="container-fluid">
         <div class="row">
           <div class="col-12">
-
-
-                
-
+            <?php
+              require_once __DIR__ . '/../../includes/payment_desk_view.php';
+              shaven_render_payment_desk($payDesk);
+            ?>
             <div class="card">
               <div class="card-header">
-                <h3 class="card-title">Posting of new payments module</h3>
+                <h3 class="card-title">Open bills</h3>
+              </div>
+              <div class="card-body pb-0">
+                <p class="mb-0">The oldest open bill for each subscriber opens in the payment desk. Later bills wait until that earlier bill is posted.</p>
               </div>
               <!-- /.card-header -->
               <div class="card-body">
-                <table id="example1" class="table table-bordered table-striped">
+                <table id="example1" class="table table-bordered table-striped" data-count-by="subscriber">
                   <thead>
                   <tr>
                 
                
                     <th>Name</th>
-                      <th>Payment For</th>
+                    <th>Billing period</th>
+                      <th>Due date</th>
                     
-                    <th>Monthly(Php)</th><!--
+                    <th>(Php)</th><!--
                     <th colspan='2'>Date of Installation</th>-->
-                  <th>Plan</th>
+                  <!--<th>Plan</th>-->
                     <th>Status</th>
                   </tr>
                   </thead>
@@ -250,67 +159,51 @@ $sessionID=$_SESSION['usr_id'];
                      
 
 
-                   echo' <script>
-                    function confirmDelete(link) {
-                        if (confirm("Confirm posting of payment?")) {
-                            doAjax(link.href, "POST"); // doAjax needs to send the "confirm" field
-                              }
-                              return false;
-                          }
-                      </script>';
-
-
-
-                  // $sql = "SELECT payment_date,c.id as pid,c.status,payment_day,payment_month,p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id FROM tbl_subs_profile as a,tbl_plans as b,tbl_payments as c where payment_uid=a.id and a.plan_id=b.id and a.status='1' and c.status='0'";
-                  $sql = "SELECT payment_amount,payment_date,c.id as pid,c.status as stat,payment_day,payment_month,p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id FROM tbl_subs_profile as a,tbl_plans as b,tbl_payments as c where payment_uid=a.id and a.plan_id=b.id and a.status='1' and c.status='0' ";
+                  // $sql = "SELECT payment_date,c.id as pid,c.status,payment_year,c.period_start,c.period_end,c.due_date,payment_day,payment_month,p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id FROM tbl_subs_profile as a,tbl_plans as b,tbl_payments as c where payment_uid=a.id and a.plan_id=b.id and a.status='1' and c.status='0'";
+                  $sql = "SELECT payment_year,payment_amount,payment_date,c.id as pid,c.status as stat,payment_year,c.period_start,c.period_end,c.due_date,payment_day,payment_month,p_speed_kb,s_name,p_name,s_doi,p_monthly_amount,a.id as id FROM tbl_subs_profile as a,tbl_plans as b,tbl_payments as c where payment_uid=a.id and a.plan_id=b.id and a.status='1' and c.status='0' ";
                   
                   $result = $conn->query($sql);
+                    $queue = [];
                     if ($result->num_rows > 0) {
-                      // output data of each row
                       while($row = $result->fetch_assoc()) {
-                        $date=date_create($row['s_doi']);
-                          $billingSTAT=$row['stat'];
-                          if($billingSTAT==0){
-                            $date1='N/A';
-                          }else{
-                            $date=date_create($row['payment_date']);
-                            $date1=date_format($date,"M d, Y h:i:s");
-                          }
-
-                       
-                        $pid=$row['id'];
+                        $queue[] = $row;
+                      }
+                    }
+                    $payable = [];
+                    $groupedBills = [];
+                    foreach ($queue as $queueRow) {
+                      $groupedBills[(int)$queueRow['id']][] = $queueRow;
+                    }
+                    foreach ($groupedBills as $subscriberBills) {
+                      usort($subscriberBills, function ($left, $right) {
+                        $byDue = strcmp(shaven_due_sort_value($left, $left['s_doi'] ?? ''), shaven_due_sort_value($right, $right['s_doi'] ?? ''));
+                        if ($byDue !== 0) {
+                          return $byDue;
+                        }
+                        return (int)$left['pid'] <=> (int)$right['pid'];
+                      });
+                      $payable[(int)$subscriberBills[0]['pid']] = true;
+                    }
+                    if ($queue) {
+                      foreach ($queue as $row) {
+                        $periodMeta = shaven_bill_period($row, $row['s_doi'] ?? '');
+                        $periodOrder = ($periodMeta && !empty($periodMeta['start'])) ? $periodMeta['start'] : '9999-12-31';
+                        $periodLabel = shaven_bill_period_label($row, $row['s_doi'] ?? '');
                       echo "<tr>
                      
                 
                         <td>".$row['s_name']."</td>
-                         <td>".$row['payment_month'].', '.$row['payment_day']."</td>
+                        <td class=\"shaven-period\" data-order=\"".h($periodOrder)."\">".h($periodLabel)."</td>
+                         ".shaven_due_cell($row)."
                        
                      
-                        <td>".$row['payment_amount']."</td>
-                      
-                        <td>".$row['p_name'].' ('.$row['p_speed_kb']. 'kb)'."</td>";
-
-                        if ($row['stat']=='1'){
-
-                          
-
-                          echo '<td><span class="badge badge-success">Paid</span></>
-                       <a onclick="return confirmDelete(this);" href="updatebill0.php?payment_id='.$row["pid"].'"><span class="badge badge-success">Revert Payment?</span></></td>';
-
-                        }else{
-                          echo '<td><span class="badge badge-warning">Unpaid</span></>
-                          <a onclick="return confirmDelete(this);" href="updatebill.php?payment_id='.$row["pid"].'"><span class="badge badge-success">Post Payment?</span>
-                          </td>';
-
-
+                        <td>".$row['payment_amount']."</td>";
+                        if (!empty($payable[(int)$row['pid']])) {
+                          echo '<td><span class="badge badge-warning">Unpaid</span> <a class="badge badge-success" href="collections.php?uid='.(int)$row['id'].'#pay-desk">Pay bills</a></td>';
+                        } else {
+                          echo '<td><span class="badge badge-warning">Unpaid</span> <span class="badge badge-secondary">Pay earlier bill first</span></td>';
                         }
                         echo "</tr>";
-                       // $payment_day=date_format($date1,"d");
-                       //  $p_amount=$row['p_monthly_amount'];
-                        
- 
-
-                     
                       }
                     } else {
                       echo "0 results";
@@ -325,8 +218,9 @@ $sessionID=$_SESSION['usr_id'];
                   <tr>
                  
                
-                  <th></th>
+                
                   <th> </th>
+                    <th></th>
                     <th></th>
                 <!--    <th colspan='2'>Date of Installation</th>-->
                         <th></th>
@@ -369,6 +263,9 @@ $sessionID=$_SESSION['usr_id'];
 <script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- DataTables  & Plugins -->
 <script src="../../plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="../../plugins/datatables-rowgroup/js/dataTables.rowGroup.min.js"></script>
+<script src="../../dist/js/shaven-groups.js?v=2"></script>
+<script src="../../dist/js/shaven-records.js"></script>
 <script src="../../plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
 <script src="../../plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
 <script src="../../plugins/datatables-responsive/js/responsive.bootstrap4.min.js"></script>
@@ -398,7 +295,7 @@ $sessionID=$_SESSION['usr_id'];
  
             // Total over all pages
             total = api
-                .column(2)
+                .column(3)
                 .data()
                 .reduce(function (a, b) {
                     return intVal(a) + intVal(b);
@@ -406,19 +303,167 @@ $sessionID=$_SESSION['usr_id'];
  
             // Total over this page
             pageTotal = api
-                .column(2, { page: 'current' })
+                .column(3, { page: 'current' })
                 .data()
                 .reduce(function (a, b) {
                     return intVal(a) + intVal(b);
                 }, 0);
  
             // Update footer
-            $(api.column(2).footer()).html('&#x20B1;' + pageTotal + ' (&#x20B1;' + total + ' total)');
+            $(api.column(3).footer()).html('&#x20B1;' + pageTotal + ' (&#x20B1;' + total + ' total)');
         },
   
       "responsive": true, "lengthChange": false, "autoWidth": false,
+      "columnDefs": [
+        { "responsivePriority": 1, "targets": 0 },
+        { "responsivePriority": 2, "targets": 1 },
+        { "responsivePriority": 4, "targets": 2 },
+        { "responsivePriority": 3, "targets": 3 },
+        { "responsivePriority": 5, "targets": 4 }
+      ],
       "buttons": []
     }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
+    var payForm = document.getElementById('pay-desk-form');
+    if (payForm) {
+      var boxes = Array.prototype.slice.call(payForm.querySelectorAll('.shaven-pay-bill'));
+      var advance = payForm.querySelector('[name="advance_months"]');
+      var amountInput = payForm.querySelector('[name="advance_amount"]');
+      var preview = payForm.querySelectorAll('.shaven-advance-line');
+      var amountPreview = document.getElementById('amount-preview');
+      var totalNode = document.getElementById('pay-desk-total');
+      var note = document.getElementById('advance-note');
+      var monthly = parseFloat(payForm.getAttribute('data-monthly') || '0');
+      var openBills = [];
+      try { openBills = JSON.parse(payForm.getAttribute('data-open') || '[]'); } catch (error) { openBills = []; }
+      function money(cents) {
+        return (cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+      function cents(value) {
+        return Math.round((parseFloat(value) || 0) * 100);
+      }
+      function allChecked() {
+        return boxes.length === 0 || boxes.every(function (box) { return box.checked; });
+      }
+      function amountCents() {
+        if (!amountInput || amountInput.disabled) return 0;
+        var raw = String(amountInput.value || '').trim();
+        if (!/^\d+(\.\d{1,2})?$/.test(raw)) return 0;
+        return cents(raw);
+      }
+      function renderAmount(cashCents) {
+        if (!amountPreview) return;
+        var left = cashCents;
+        var monthlyCents = cents(monthly);
+        var lines = [];
+        openBills.forEach(function (bill) {
+          if (left <= 0) return;
+          var billCents = cents(bill.amount);
+          if (billCents < 1) return;
+          var applied = Math.min(left, billCents);
+          var remain = billCents - applied;
+          left -= applied;
+          var line = bill.label + ': ₱' + money(applied) + ' posted';
+          if (remain > 0) line += '. ₱' + money(remain) + ' remains open';
+          else if (left > 0) line += '. Balance forwarded to the next month';
+          lines.push(line);
+        });
+        Array.prototype.forEach.call(preview, function (period) {
+          if (left <= 0 || monthlyCents < 1) return;
+          var applied = Math.min(left, monthlyCents);
+          var remain = monthlyCents - applied;
+          left -= applied;
+          var line = period.getAttribute('data-label') + ': ₱' + money(applied) + ' posted';
+          if (remain > 0) line += '. ₱' + money(remain) + ' remains open';
+          else if (left > 0) line += '. Balance forwarded to the next month';
+          lines.push(line);
+        });
+        amountPreview.innerHTML = lines.map(function (line) { return '<li>' + line + '</li>'; }).join('');
+        amountPreview.hidden = lines.length === 0;
+      }
+      function syncPayDesk() {
+        var cash = amountCents();
+        var amountMode = cash > 0;
+        boxes.forEach(function (box) { box.disabled = amountMode; });
+        var ready = allChecked();
+        var months = 0;
+        if (advance) {
+          advance.disabled = amountMode || !ready;
+          if (amountMode || !ready) {
+            advance.value = '0';
+          }
+          months = !advance.disabled ? (parseInt(advance.value, 10) || 0) : 0;
+          if (months < 0) months = 0;
+          if (months > 12) months = 12;
+        }
+        if (amountInput) amountInput.disabled = months > 0;
+        Array.prototype.forEach.call(preview, function (line) {
+          line.hidden = amountMode || !(ready && (parseInt(line.getAttribute('data-n'), 10) || 0) <= months);
+        });
+        if (amountMode) renderAmount(cash);
+        else if (amountPreview) {
+          amountPreview.hidden = true;
+          amountPreview.innerHTML = '';
+        }
+        if (note) {
+          if (amountMode) {
+            note.textContent = openBills.length
+              ? 'This amount starts at the oldest open bill. Anything above that month is forwarded to the next month.'
+              : 'This amount starts at the next billing period. Anything above that month is forwarded to the next month.';
+          } else if (!ready) {
+            note.textContent = 'Advance months stay off until every open bill is included. An advance amount can be posted without selecting every bill.';
+          } else if (months > 0 && !boxes.length) {
+            note.textContent = 'These months are posted ahead of the next bill, using the current monthly amount.';
+          } else if (months > 0) {
+            note.textContent = 'These advance months are posted after the open bills, using the current monthly amount.';
+          } else if (!boxes.length) {
+            note.textContent = 'Enter an advance amount, or choose how many months to post ahead.';
+          } else {
+            note.textContent = 'Enter an advance amount, or add advance months after these bills.';
+          }
+        }
+        if (totalNode) {
+          var total = amountMode ? cash / 100 : months * monthly;
+          if (!amountMode) {
+            boxes.forEach(function (box) {
+              if (box.checked && !box.disabled) total += parseFloat(box.getAttribute('data-amount') || '0');
+            });
+          }
+          totalNode.textContent = total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+      }
+      boxes.forEach(function (box, index) {
+        box.addEventListener('change', function () {
+          if (box.checked) {
+            for (var earlier = 0; earlier < index; earlier++) boxes[earlier].checked = true;
+          } else {
+            for (var later = index; later < boxes.length; later++) boxes[later].checked = false;
+          }
+          syncPayDesk();
+        });
+      });
+      if (advance) advance.addEventListener('input', syncPayDesk);
+      if (amountInput) amountInput.addEventListener('input', syncPayDesk);
+      payForm.addEventListener('submit', function (event) {
+        var cash = amountCents();
+        if (cash > 0) {
+          if (!window.confirm('Post ₱' + money(cash) + ' from the oldest bill forward? Any amount above a month is forwarded to the next month.')) {
+            event.preventDefault();
+          }
+          return;
+        }
+        var count = boxes.filter(function (box) { return box.checked && !box.disabled; }).length;
+        var months = advance && !advance.disabled ? (parseInt(advance.value, 10) || 0) : 0;
+        if (count < 1 && months < 1) {
+          event.preventDefault();
+          window.alert('Select the oldest open bill, enter an advance amount, or enter at least one advance month.');
+          return;
+        }
+        var message = 'Post ' + count + ' bill' + (count === 1 ? '' : 's');
+        if (months > 0) message += ' and ' + months + ' advance month' + (months === 1 ? '' : 's');
+        if (!window.confirm(message + '?')) event.preventDefault();
+      });
+      syncPayDesk();
+    }
     $('#example2').DataTable({
       "paging": true,
       "lengthChange": false,

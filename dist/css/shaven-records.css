@@ -1,0 +1,174 @@
+.shaven-records-wrap {
+  color: #1c2833;
+}
+.shaven-records-wrap .shaven-dt-top,
+.shaven-records-wrap .shaven-dt-length,
+.shaven-records-wrap .shaven-dt-bottom {
+  margin: 0 0 .75rem;
+  align-items: center;
+}
+.shaven-records-wrap .shaven-dt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  min-height: 32px;
+}
+.shaven-records-wrap .dt-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+}
+.shaven-records-wrap .dt-buttons .btn {
+  border-radius: 999px;
+  font-size: .78rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  padding: .28rem .75rem;
+}
+.shaven-records-wrap .dataTables_filter {
+  text-align: right;
+}
+.shaven-records-wrap .dataTables_filter label,
+.shaven-records-wrap .dataTables_length label {
+  font-weight: 600;
+  color: #52606d;
+  margin: 0;
+}
+.shaven-records-wrap .dataTables_filter input {
+  width: 100%;
+  max-width: 320px;
+  margin-left: .5rem;
+  border-radius: 999px;
+  border: 1px solid #c5d0da;
+  padding: .35rem .9rem;
+}
+.shaven-records-wrap .dataTables_length select {
+  border-radius: 999px;
+  border: 1px solid #c5d0da;
+  margin: 0 .35rem;
+  padding: .15rem .4rem;
+}
+.shaven-records-wrap .dataTables_info {
+  color: #52606d;
+  padding-top: .4rem;
+}
+.shaven-records-wrap .pagination .page-link {
+  border-radius: 999px;
+  margin: 0 .15rem;
+}
+table.shaven-records {
+  border: 0;
+  margin-top: .25rem !important;
+  width: 100% !important;
+}
+table.shaven-records thead th {
+  background: var(--shaven-navy, #0e2a3a);
+  color: #fff;
+  border-color: var(--shaven-navy, #0e2a3a) !important;
+  font-size: .78rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+table.shaven-records tfoot th {
+  background: #f4f7fa;
+  color: #12344d;
+  font-weight: 700;
+}
+table.shaven-records tbody td {
+  vertical-align: middle;
+  border-color: #e6edf2;
+}
+table.shaven-records tbody tr:hover td {
+  background: #eef6fb;
+}
+table.shaven-records td.sorting_1,
+table.shaven-records td.sorting_2 {
+  background: #f7fbfd;
+}
+table.shaven-records tr.dtrg-group td,
+table.table tr.shaven-bill-group td {
+  background: #e7eef3 !important;
+  color: var(--shaven-navy, #0e2a3a);
+  border-top: 2px solid #c5d5e0;
+  font-weight: 700;
+  padding: .7rem .8rem;
+  cursor: pointer;
+  user-select: none;
+}
+table.shaven-records tr.dtrg-group:hover td,
+table.table tr.shaven-bill-group:hover td {
+  background: #d5e4ee !important;
+}
+tr.dtrg-group:focus,
+tr.shaven-bill-group:focus {
+  outline: 2px solid var(--shaven-teal, #1f7a8c);
+  outline-offset: -2px;
+}
+.shaven-group-name::before {
+  content: "";
+  display: inline-block;
+  width: .42rem;
+  height: .42rem;
+  margin: 0 .55rem .15rem 0;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  vertical-align: middle;
+}
+tr.shaven-group-collapsed .shaven-group-name::before {
+  transform: rotate(-45deg);
+  margin-bottom: 0;
+}
+tr.shaven-group-member-hidden {
+  display: none !important;
+}
+tr.shaven-group-member-hidden {
+  display: none !important;
+}
+.shaven-bill-group {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+.shaven-group-name {
+  font-size: .95rem;
+  font-weight: 700;
+}
+.shaven-group-meta {
+  margin-left: auto;
+  color: #52606d;
+  font-size: .8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.shaven-period {
+  white-space: normal;
+  min-width: 16rem;
+  line-height: 1.35;
+}
+.shaven-install-date {
+  display: inline-block;
+  white-space: nowrap;
+  background: #e7f4ec;
+  color: var(--shaven-ok, #1f7a4d);
+  border-radius: 999px;
+  padding: .2rem .7rem;
+  font-weight: 700;
+}
+.shaven-records-wrap .dataTables_empty {
+  padding: 1.5rem !important;
+  color: #52606d;
+}
+@media (max-width: 767px) {
+  .shaven-records-wrap .dataTables_filter,
+  .shaven-records-wrap .dataTables_filter input {
+    text-align: left;
+    max-width: none;
+    width: 100%;
+    margin: .4rem 0 0;
+  }
+}
