@@ -168,6 +168,10 @@ function shaven_revert_request($conn, $userId, $paymentId) {
         return ['ok' => false, 'error' => 'The revert request was not saved.'];
     }
     mysqli_commit($conn);
+    $fact = shaven_notify_payment_fact($conn, $paymentId);
+    if ($fact) {
+        shaven_notify_revert_requested($conn, $userId, $fact);
+    }
     return ['ok' => true, 'error' => 'The revert is waiting for an admin or the owner. It stays available only while the payment has not been remitted.'];
 }
 
@@ -187,6 +191,7 @@ function shaven_revert_cancel($conn, $userId, $paymentId) {
         }
         return ['ok' => false, 'error' => 'That revert request cannot be cancelled from this account.'];
     }
+    $fact = shaven_notify_payment_fact($conn, $paymentId);
     $saved = shaven_exec(
         $conn,
         "UPDATE tbl_payments SET revert=0, revert_by=NULL WHERE id=? AND status=1 AND revert=1",
@@ -198,6 +203,9 @@ function shaven_revert_cancel($conn, $userId, $paymentId) {
         return ['ok' => false, 'error' => 'The revert request was not cancelled.'];
     }
     mysqli_commit($conn);
+    if ($fact) {
+        shaven_notify_revert_cancelled($conn, $userId, $fact);
+    }
     return ['ok' => true, 'error' => 'The revert request was cancelled. The payment stays paid.'];
 }
 
@@ -290,6 +298,7 @@ function shaven_revert_approve($conn, $userId, $paymentId) {
         mysqli_rollback($conn);
         return ['ok' => false, 'error' => 'The payment could not be taken off the remittance list.'];
     }
+    $fact = shaven_notify_payment_fact($conn, $paymentId);
     $saved = shaven_exec(
         $conn,
         "UPDATE tbl_payments
@@ -303,6 +312,9 @@ function shaven_revert_approve($conn, $userId, $paymentId) {
         return ['ok' => false, 'error' => 'The revert was not approved.'];
     }
     mysqli_commit($conn);
+    if ($fact) {
+        shaven_notify_revert_approved($conn, $userId, $fact);
+    }
     return ['ok' => true, 'error' => 'The revert was approved. That bill is unpaid again.'];
 }
 
@@ -322,6 +334,7 @@ function shaven_revert_close($conn, $userId, $paymentId) {
         mysqli_rollback($conn);
         return ['ok' => false, 'error' => 'That request is not a remitted payment waiting to be closed.'];
     }
+    $fact = shaven_notify_payment_fact($conn, $paymentId);
     $saved = shaven_exec(
         $conn,
         "UPDATE tbl_payments SET revert=0, revert_by=NULL WHERE id=? AND status=1 AND revert=1",
@@ -333,6 +346,9 @@ function shaven_revert_close($conn, $userId, $paymentId) {
         return ['ok' => false, 'error' => 'The revert request was not closed.'];
     }
     mysqli_commit($conn);
+    if ($fact) {
+        shaven_notify_revert_closed($conn, $userId, $fact);
+    }
     return ['ok' => true, 'error' => 'The revert request was closed. The payment stays paid because it was already remitted.'];
 }
 

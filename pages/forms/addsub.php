@@ -33,6 +33,9 @@ if ($result->num_rows > 0) {
             );
             if ($saved['ok']) {
                 shaven_assign_account_number($conn, (int)$saved['id']);
+                if (function_exists('shaven_notify_subscriber_added')) {
+                    shaven_notify_subscriber_added($conn, (int)$saved['id'], $s_name);
+                }
            // echo "New records created successfully";
             //header("location: sub.addnew.php");
 

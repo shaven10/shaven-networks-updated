@@ -14,6 +14,9 @@ $sessionID=$_SESSION['usr_id'];
 
 $sql = "UPDATE tbl_subs_profile set status='1' WHERE id='$pid'";
 $result = $conn->query($sql);
+if ($result && $conn->affected_rows > 0 && function_exists('shaven_notify_subscriber_status')) {
+    shaven_notify_subscriber_status($conn, (int)$pid, true);
+}
 
  echo '<script>
             alert("Subscriber Activated!!!");

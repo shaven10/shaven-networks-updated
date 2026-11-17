@@ -231,6 +231,7 @@ function shaven_remit_submit_batch($conn, $userId, $rawIds) {
         return ['ok' => false, 'error' => 'The remittance batch was not saved.'];
     }
     mysqli_commit($conn);
+    shaven_notify_remit_submitted($conn, $userId, $ref, count($ids), round($sum, 2));
     return [
         'ok' => true,
         'error' => '',
@@ -306,6 +307,7 @@ function shaven_remit_confirm_batch($conn, $userId, $batchId) {
         return ['ok' => false, 'error' => 'The remittance was not confirmed.'];
     }
     mysqli_commit($conn);
+    shaven_notify_remit_confirmed($conn, $userId, (int)$batches[0]['collector_id'], (string)$batches[0]['ref'], count($items), round($sum, 2));
     return [
         'ok' => true,
         'error' => '',

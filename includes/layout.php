@@ -11,7 +11,7 @@ function shaven_page_open($title, $heading) {
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
   <link rel="stylesheet" href="<?php echo h(shaven_url('plugins/fontawesome-free/css/all.min.css')); ?>">
   <link rel="stylesheet" href="<?php echo h(shaven_url('dist/css/adminlte.min.css')); ?>">
-  <link rel="stylesheet" href="<?php echo h(shaven_url('dist/css/shaven-theme.css')); ?>">
+  <link rel="stylesheet" href="<?php echo h(shaven_url('dist/css/shaven-theme.css')); ?>?v=<?php echo (int)@filemtime(__DIR__ . '/../dist/css/shaven-theme.css'); ?>">
   <?php if (!empty($GLOBALS['shaven_needs_records'])): ?>
   <link rel="stylesheet" href="<?php echo h(shaven_url('plugins/datatables-bs4/css/dataTables.bootstrap4.min.css')); ?>">
   <link rel="stylesheet" href="<?php echo h(shaven_url('plugins/datatables-responsive/css/responsive.bootstrap4.min.css')); ?>">
@@ -92,6 +92,37 @@ $(function () {
 <script src="<?php echo h(shaven_url('plugins/chart.js/Chart.min.js')); ?>"></script>
 <?php endif; ?>
 <script src="<?php echo h(shaven_url('dist/js/adminlte.min.js')); ?>"></script>
+<script>
+(function () {
+  var root = document.getElementById('shaven-notify');
+  if (!root || !window.fetch) return;
+  var url = root.getAttribute('data-feed');
+  var menu = document.getElementById('shaven-notify-menu');
+  var badge = document.getElementById('shaven-notify-count');
+  var toggle = document.getElementById('shaven-notify-toggle');
+  function paint(data) {
+    if (!data) return;
+    var n = parseInt(data.unread, 10) || 0;
+    if (badge) {
+      badge.textContent = n > 99 ? '99+' : String(n);
+      badge.classList.toggle('d-none', n < 1);
+    }
+    if (toggle) {
+      toggle.setAttribute('aria-label', n > 0 ? ('Notifications, ' + n + ' unread') : 'Notifications');
+    }
+    if (menu && typeof data.html === 'string' && !menu.classList.contains('show')) {
+      menu.innerHTML = data.html;
+    }
+  }
+  function pull() {
+    fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(paint)
+      .catch(function () {});
+  }
+  setInterval(pull, 30000);
+})();
+</script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   var holder = document.getElementById('dash-data');

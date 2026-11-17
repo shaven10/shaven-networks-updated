@@ -527,6 +527,7 @@ function shaven_migrate($conn) {
         KEY collector_id (collector_id),
         KEY status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    shaven_notify_install($conn);
 }
 
 function shaven_refresh_user($conn) {
@@ -598,7 +599,7 @@ function shaven_role_allowed($role, $rel) {
         return false;
     }
     $deny = $techDeny;
-    if ($rel === '/pages/account/profile.php') {
+    if ($rel === '/pages/account/profile.php' || $rel === '/pages/account/notifications.php') {
         return true;
     }
     foreach ($deny as $prefix) {
@@ -646,6 +647,7 @@ function shaven_web_boot($enforce = true) {
         }
         shaven_migrate($conn);
         shaven_refresh_user($conn);
+        shaven_notify_refresh($conn);
         $started = true;
     }
     if ($enforce) {
@@ -962,6 +964,7 @@ function shaven_billing_generate($conn, $fromYear, $fromMonth, $toYear, $toMonth
     }
     mysqli_begin_transaction($conn);
     $created = 0;
+    $bySubscriber = [];
     foreach ($plan['create'] as $bill) {
         $saved = shaven_exec(
             $conn,
@@ -976,8 +979,14 @@ function shaven_billing_generate($conn, $fromYear, $fromMonth, $toYear, $toMonth
             return ['ok' => false, 'error' => 'The bills were not created. Nothing from this run was saved.'];
         }
         $created++;
+        $subId = (int)$bill['subscriber_id'];
+        if (!isset($bySubscriber[$subId])) {
+            $bySubscriber[$subId] = ['name' => (string)$bill['name'], 'count' => 0];
+        }
+        $bySubscriber[$subId]['count']++;
     }
     mysqli_commit($conn);
+    shaven_notify_bills_created($conn, $bySubscriber, $created);
     return ['ok' => true, 'error' => '', 'created' => $created, 'skipped' => (int)$plan['skipped'], 'subscriber' => $subscriberName];
 }
 
@@ -1142,6 +1151,13 @@ function shaven_change_plan($conn, $subscriberId, $newPlanId, $userId, $note) {
     if ($oldPlanId === $newPlanId) {
         return 'This account is already on ' . $plans[0]['p_name'] . '.';
     }
+    $oldName = 'the previous plan';
+    if ($oldPlanId > 0) {
+        $oldPlans = shaven_rows($conn, "SELECT p_name FROM tbl_plans WHERE id=? LIMIT 1", 'i', [$oldPlanId]);
+        if ($oldPlans && trim((string)$oldPlans[0]['p_name']) !== '') {
+            $oldName = $oldPlans[0]['p_name'];
+        }
+    }
     $note = substr(trim((string)$note), 0, 255);
     $month = date('F');
     $year = (int)date('Y');
@@ -1166,6 +1182,7 @@ function shaven_change_plan($conn, $subscriberId, $newPlanId, $userId, $note) {
         return 'The plan change did not save. Try it again.';
     }
     mysqli_commit($conn);
+    shaven_notify_plan_changed($conn, $subscriberId, $userId, $oldName, $plans[0]['p_name']);
     return true;
 }
 
@@ -1281,6 +1298,7 @@ function shaven_pay_bills($conn, $subscriberId, array $billIds, $userId) {
         $receipts[] = $id;
     }
     mysqli_commit($conn);
+    shaven_notify_payment_posted($conn, $subscriberId, $userId, $receipts, true);
     return ['ok' => true, 'error' => '', 'receipts' => $receipts];
 }
 
@@ -1728,7 +1746,11 @@ function shaven_counter_collect($conn, $subscriberId, array $billIds, $advanceCo
         if ((int)$advanceCount > 0) {
             return ['ok' => false, 'error' => 'Enter an advance amount or a number of advance months, not both.', 'receipts' => []];
         }
-        return shaven_post_advance_amount($conn, $profile, $open, $cashCents, $userId, $medium);
+        $posted = shaven_post_advance_amount($conn, $profile, $open, $cashCents, $userId, $medium);
+        if ($posted['ok']) {
+            shaven_notify_payment_posted($conn, $subscriberId, $userId, $posted['receipts'], false);
+        }
+        return $posted;
     }
     $selection = shaven_payment_selection($open, $billIds, $advanceCount);
     if (!$selection['ok']) {
@@ -1808,6 +1830,7 @@ function shaven_counter_collect($conn, $subscriberId, array $billIds, $advanceCo
         $receipts[] = (int)$saved['id'];
     }
     mysqli_commit($conn);
+    shaven_notify_payment_posted($conn, $subscriberId, $userId, $receipts, false);
     return ['ok' => true, 'error' => '', 'receipts' => $receipts];
 }
 
@@ -1960,7 +1983,30 @@ function shaven_create_login($conn, $username, $password, $fullname, $level, $st
     if (!$result['ok']) {
         return ['ok' => false, 'error' => 'The account was not created.'];
     }
-    return ['ok' => true, 'error' => '', 'id' => (int)$result['id']];
+    $newId = (int)$result['id'];
+    if ($status === 1 && $newId > 0) {
+        $actorId = (int)($_SESSION['usr_id'] ?? 0);
+        shaven_notify(
+            $conn,
+            $newId,
+            'account',
+            'Your account is ready',
+            'Sign in as ' . $username . '. Your role is ' . shaven_role_name($level) . '.',
+            'index.php',
+            $actorId
+        );
+        $office = array_values(array_diff(shaven_notify_user_ids($conn, [1, 2], $actorId), [$newId]));
+        shaven_notify(
+            $conn,
+            $office,
+            'account',
+            'Account created',
+            $fullname . ' can sign in as ' . $username . ' (' . shaven_role_name($level) . ').',
+            'pages/admin/users.php',
+            $actorId
+        );
+    }
+    return ['ok' => true, 'error' => '', 'id' => $newId];
 }
 
 function shaven_provision_subscriber($conn, $subscriberId) {
@@ -1994,6 +2040,15 @@ function shaven_reset_portal_password($conn, $subscriberId) {
     if (!$result['ok']) {
         return ['ok' => false, 'error' => 'The password was not reset.'];
     }
+    shaven_notify(
+        $conn,
+        (int)$rows[0]['id'],
+        'account',
+        'Password reset',
+        'The office reset the password for ' . $rows[0]['username'] . '. Sign in with the new password they gave you.',
+        'pages/account/profile.php',
+        (int)($_SESSION['usr_id'] ?? 0)
+    );
     return ['ok' => true, 'username' => $rows[0]['username'], 'password' => $password, 'error' => ''];
 }
 
@@ -2002,3 +2057,4 @@ require_once __DIR__ . '/revert.php';
 require_once __DIR__ . '/owner_batch.php';
 require_once __DIR__ . '/bill_adjust.php';
 require_once __DIR__ . '/collection_records.php';
+require_once __DIR__ . '/notifications.php';

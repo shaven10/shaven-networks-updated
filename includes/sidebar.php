@@ -6,11 +6,16 @@ if (!function_exists('shaven_role')) {
     }
 }
 
-function shaven_nav_item($path, $icon, $label) {
+function shaven_nav_item($path, $icon, $label, $badge = 0) {
     $current = shaven_rel_script();
     $active = ($current === '/' . ltrim($path, '/')) ? ' active' : '';
     echo '<li class="nav-item"><a href="' . h(shaven_url($path)) . '" class="nav-link' . $active . '">';
-    echo '<i class="' . h($icon) . ' nav-icon"></i><p>' . h($label) . '</p></a></li>';
+    echo '<i class="' . h($icon) . ' nav-icon"></i><p>' . h($label);
+    $badge = (int)$badge;
+    if ($badge > 0) {
+        echo '<span class="right badge badge-danger">' . ($badge > 99 ? '99+' : $badge) . '</span>';
+    }
+    echo '</p></a></li>';
 }
 
 function shaven_nav_group($icon, $label, $items) {
@@ -94,6 +99,14 @@ $photoUrl = shaven_account_photo_url($_SESSION['photo'] ?? '');
           shaven_nav_item('pages/admin/users.php', 'fas fa-users-cog', 'Accounts');
         ?>
       <?php endif; ?>
+      <?php
+        $notifyUnread = 0;
+        $notifyConn = $GLOBALS['conn'] ?? null;
+        if ($notifyConn instanceof mysqli && function_exists('shaven_notify_unread_count') && !empty($_SESSION['usr_id'])) {
+            $notifyUnread = shaven_notify_unread_count($notifyConn, (int)$_SESSION['usr_id']);
+        }
+        shaven_nav_item('pages/account/notifications.php', 'fas fa-bell', 'Notifications', $notifyUnread);
+      ?>
       <?php shaven_nav_item('pages/account/profile.php', 'fas fa-user-circle', 'Account profile'); ?>
       <?php shaven_nav_item('logout.php', 'fas fa-sign-out-alt', 'Sign Out'); ?>
     </ul>
