@@ -1,0 +1,17 @@
+{
+    "kind": "snapshot",
+    "label": "Auto before reset 2026-11-20 13:12:48",
+    "created_by": 1,
+    "scope": "transactions",
+    "file": "snap_20261120_131248_auto-before-reset-2026-11-20-13-12-48.sql",
+    "bytes": 149621,
+    "created_at": "2026-11-20T13:12:48+08:00",
+    "tables": [
+        "tbl_remittances",
+        "tbl_remit_batches",
+        "tbl_payments",
+        "tbl_finances",
+        "tbl_plan_changes",
+        "tbl_notifications"
+    ]
+}

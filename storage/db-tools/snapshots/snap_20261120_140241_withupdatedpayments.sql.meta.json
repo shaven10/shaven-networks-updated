@@ -1,0 +1,17 @@
+{
+    "kind": "snapshot",
+    "label": "withupdatedpayments",
+    "created_by": 1,
+    "scope": "transactions",
+    "file": "snap_20261120_140241_withupdatedpayments.sql",
+    "bytes": 213191,
+    "created_at": "2026-11-20T14:02:41+08:00",
+    "tables": [
+        "tbl_remittances",
+        "tbl_remit_batches",
+        "tbl_payments",
+        "tbl_finances",
+        "tbl_plan_changes",
+        "tbl_notifications"
+    ]
+}

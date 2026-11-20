@@ -1,0 +1,23 @@
+{
+    "kind": "backup",
+    "label": "foruploadsacloud",
+    "created_by": 1,
+    "scope": "full",
+    "file": "backup_20261120_141706_foruploadsacloud.sql",
+    "bytes": 236500,
+    "created_at": "2026-11-20T14:17:06+08:00",
+    "tables": [
+        "tbl_admin_level",
+        "tbl_finances",
+        "tbl_mediums",
+        "tbl_months",
+        "tbl_notifications",
+        "tbl_payments",
+        "tbl_plan_changes",
+        "tbl_plans",
+        "tbl_remit_batches",
+        "tbl_remittances",
+        "tbl_subs_profile",
+        "tbl_sys_users"
+    ]
+}
