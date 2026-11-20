@@ -140,7 +140,6 @@
           account: row.getAttribute('data-account') || '',
           name: row.getAttribute('data-name') || '',
           detail: row.getAttribute('data-detail') || '',
-          status: row.getAttribute('data-status') || '',
           payment: row.getAttribute('data-payment') || '',
           amount: row.getAttribute('data-amount-label') || ''
         });
@@ -150,7 +149,6 @@
         kind: 'bill',
         period: row.getAttribute('data-period') || '',
         due: row.getAttribute('data-due') || '',
-        status: row.getAttribute('data-status') || '',
         payment: row.getAttribute('data-payment') || '',
         amount: row.getAttribute('data-amount-label') || ''
       });
@@ -181,7 +179,7 @@
     var maxHeight = 6400;
     var banner = 168;
     var columns = 36;
-    var rowH = 34;
+    var rowH = 44;
     var groupH = 52;
     var usable = maxHeight - banner - columns - 48;
     var pages = [];
@@ -240,12 +238,9 @@
       ctx.fillRect(0, y, width, columns);
       ctx.fillStyle = '#0e2a3a';
       ctx.font = '700 13px Segoe UI, Arial, sans-serif';
-      ctx.fillText('ACCOUNT', margin, y + 23);
-      ctx.fillText('SUBSCRIBER', 170, y + 23);
-      ctx.fillText('STATUS', 420, y + 23);
-      ctx.fillText('PAYMENT STATUS', 510, y + 23);
-      ctx.fillText('BILLING PERIOD', 680, y + 23);
-      ctx.fillText('DUE DATE', 1060, y + 23);
+      ctx.fillText('SUBSCRIBER', margin, y + 23);
+      ctx.fillText('PAYMENT STATUS', 480, y + 23);
+      ctx.fillText('DUE DATE', 680, y + 23);
       ctx.textAlign = 'right';
       ctx.fillText('AMOUNT', width - margin, y + 23);
       ctx.textAlign = 'left';
@@ -254,20 +249,16 @@
         if (line.kind === 'group') {
           ctx.fillStyle = '#f7f1e4';
           ctx.fillRect(0, y, width, groupH);
-          ctx.fillStyle = '#a56b12';
-          ctx.font = '700 14px Segoe UI, Arial, sans-serif';
-          ctx.fillText(fit(ctx, line.account || 'No account number', 120), margin, y + 22);
           ctx.fillStyle = '#0e2a3a';
           ctx.font = '700 15px Segoe UI, Arial, sans-serif';
-          ctx.fillText(fit(ctx, line.name, 230), 170, y + 22);
-          ctx.fillStyle = line.status === 'Pending' ? '#a56b12' : '#1f7a4d';
-          ctx.font = '700 14px Segoe UI, Arial, sans-serif';
-          ctx.fillText(fit(ctx, line.status, 80), 420, y + 28);
+          ctx.fillText(fit(ctx, line.name, 420), margin, y + 22);
           ctx.fillStyle = line.payment === 'Paid' ? '#1f7a4d' : '#a56b12';
-          ctx.fillText(fit(ctx, line.payment, 140), 510, y + 28);
+          ctx.font = '700 14px Segoe UI, Arial, sans-serif';
+          ctx.fillText(fit(ctx, line.payment, 140), 480, y + 28);
           ctx.fillStyle = '#5d6e78';
           ctx.font = '13px Segoe UI, Arial, sans-serif';
-          ctx.fillText(fit(ctx, line.detail, 230), 170, y + 40);
+          var accountLine = (line.account || 'No account number') + (line.detail ? ' · ' + line.detail : '');
+          ctx.fillText(fit(ctx, accountLine, 420), margin, y + 40);
           ctx.fillStyle = '#0e2a3a';
           ctx.font = '700 14px Segoe UI, Arial, sans-serif';
           ctx.textAlign = 'right';
@@ -276,17 +267,19 @@
           y += groupH;
           return;
         }
-        ctx.fillStyle = line.status === 'Pending' ? '#a56b12' : '#1f7a4d';
-        ctx.font = '700 14px Segoe UI, Arial, sans-serif';
-        ctx.fillText(fit(ctx, line.status, 80), 420, y + 22);
         ctx.fillStyle = line.payment === 'Paid' ? '#1f7a4d' : '#a56b12';
-        ctx.fillText(fit(ctx, line.payment, 140), 510, y + 22);
+        ctx.font = '700 14px Segoe UI, Arial, sans-serif';
+        ctx.fillText(fit(ctx, line.payment, 140), 480, y + 26);
+        ctx.fillStyle = '#1b2b34';
+        ctx.font = '700 14px Segoe UI, Arial, sans-serif';
+        ctx.fillText(fit(ctx, line.due, 400), 680, y + 20);
+        ctx.fillStyle = '#5d6e78';
+        ctx.font = '12px Segoe UI, Arial, sans-serif';
+        ctx.fillText(fit(ctx, line.period, 400), 680, y + 36);
         ctx.fillStyle = '#1b2b34';
         ctx.font = '14px Segoe UI, Arial, sans-serif';
-        ctx.fillText(fit(ctx, line.period, 360), 680, y + 22);
-        ctx.fillText(fit(ctx, line.due, 180), 1060, y + 22);
         ctx.textAlign = 'right';
-        ctx.fillText(line.amount, width - margin, y + 22);
+        ctx.fillText(line.amount, width - margin, y + 26);
         ctx.textAlign = 'left';
         ctx.strokeStyle = '#d5e1e6';
         ctx.beginPath();

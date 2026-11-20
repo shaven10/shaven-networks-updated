@@ -24,7 +24,7 @@ shaven_page_open('Tinglunon', 'Tinglunon');
 <div class="d-flex flex-wrap align-items-end mb-3">
   <div class="form-group mr-3 mb-2">
     <label for="tinglunon-find">Find</label>
-    <input id="tinglunon-find" class="form-control" type="search" placeholder="Name, account, status, payment, or period">
+    <input id="tinglunon-find" class="form-control" type="search" placeholder="Name, account, payment, or period">
   </div>
   <div class="btn-group mb-2 mr-3">
     <button class="btn btn-primary" type="button" data-tinglunon-export="png" <?php echo $report['count'] ? '' : 'disabled'; ?>><i class="fas fa-image"></i> Export PNG</button>
@@ -51,12 +51,9 @@ shaven_page_open('Tinglunon', 'Tinglunon');
       <table class="table table-sm mb-0">
         <thead>
           <tr>
-            <th>Account</th>
             <th>Subscriber</th>
-            <th>Status</th>
             <th>Payment status</th>
             <th>Billing month</th>
-            <th>Billing period</th>
             <th>Due date</th>
             <th class="tinglunon-money">Amount</th>
           </tr>
@@ -64,7 +61,6 @@ shaven_page_open('Tinglunon', 'Tinglunon');
         <tbody>
         <?php foreach ($report['groups'] as $group): ?>
           <?php
-            $statusLabel = (int)$group['status'] === 1 ? 'Active' : ((int)$group['status'] === 2 ? 'Inactive' : 'Pending');
             $paymentLabel = (string)($group['payment_status'] ?? 'Unpaid');
             $detailParts = array_filter([$group['address'], $group['plan'], $group['count'] . ' bill' . ($group['count'] === 1 ? '' : 's')]);
             $detail = implode(' · ', $detailParts);
@@ -80,18 +76,15 @@ shaven_page_open('Tinglunon', 'Tinglunon');
               data-account="<?php echo h($group['account']); ?>"
               data-name="<?php echo h($group['name']); ?>"
               data-detail="<?php echo h($detail); ?>"
-              data-status="<?php echo h($statusLabel); ?>"
               data-payment="<?php echo h($paymentLabel); ?>"
               data-amount-label="<?php echo h($amountLabel); ?>"
-              data-find="<?php echo h(shaven_tinglunon_find([$group['name'], $group['account'], $group['address'], $group['plan'], $statusLabel, $paymentLabel])); ?>">
-            <td><span class="shaven-account-no"><?php echo h($group['account'] !== '' ? $group['account'] : 'No account number'); ?></span></td>
+              data-find="<?php echo h(shaven_tinglunon_find([$group['name'], $group['account'], $group['address'], $group['plan'], $paymentLabel])); ?>">
             <td>
               <strong class="shaven-group-name"><?php echo h($group['name']); ?></strong>
+              <div><span class="shaven-account-no"><?php echo h($group['account'] !== '' ? $group['account'] : 'No account number'); ?></span></div>
               <div class="text-muted small"><?php echo h($detail); ?></div>
             </td>
-            <td class="tinglunon-status"><?php echo shaven_status_badge($group['status']); ?></td>
             <td class="tinglunon-status"><?php echo shaven_tinglunon_payment_badge($paymentLabel); ?></td>
-            <td></td>
             <td></td>
             <td></td>
             <td class="tinglunon-money"><strong><?php echo shaven_peso($group['total']); ?></strong></td>
@@ -108,18 +101,17 @@ shaven_page_open('Tinglunon', 'Tinglunon');
                 data-month="<?php echo h($billMonth); ?>"
                 data-period="<?php echo h($bill['period']); ?>"
                 data-due="<?php echo h($bill['due_label']); ?>"
-                data-status="<?php echo h($statusLabel); ?>"
                 data-payment="<?php echo h($billPayment); ?>"
                 data-amount="<?php echo h(number_format((float)$bill['amount'], 2, '.', '')); ?>"
                 data-amount-label="<?php echo h($billAmount); ?>"
-                data-find="<?php echo h(shaven_tinglunon_find([$group['name'], $group['account'], $statusLabel, $billPayment, $billMonth, $bill['period'], $bill['due_label']])); ?>">
+                data-find="<?php echo h(shaven_tinglunon_find([$group['name'], $group['account'], $billPayment, $billMonth, $bill['period'], $bill['due_label']])); ?>">
               <td></td>
-              <td></td>
-              <td class="tinglunon-status"><?php echo shaven_status_badge($group['status']); ?></td>
               <td class="tinglunon-status"><?php echo shaven_tinglunon_payment_badge($billPayment); ?></td>
               <td><?php echo h($billMonth); ?></td>
-              <td><?php echo h($bill['period']); ?></td>
-              <td><span class="shaven-due-date"><?php echo h($bill['due_label']); ?></span></td>
+              <td>
+                <span class="shaven-due-date"><?php echo h($bill['due_label']); ?></span>
+                <span class="shaven-history-inclusive"><?php echo h($bill['period']); ?></span>
+              </td>
               <td class="tinglunon-money"><?php echo shaven_peso($bill['amount']); ?></td>
             </tr>
           <?php endforeach; ?>
