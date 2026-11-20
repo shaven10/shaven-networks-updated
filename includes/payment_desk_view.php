@@ -33,8 +33,19 @@ function shaven_render_payment_desk(array $payDesk) {
             $deskBills = [];
             foreach ($payDesk['open'] as $bill) {
                 $deskBills[] = [
+                    'month' => shaven_billing_month_label($bill),
                     'label' => shaven_bill_period_label($bill, $deskProfile['s_doi']),
+                    'due' => shaven_due_text($bill, $deskProfile['s_doi']),
                     'amount' => round((float)$bill['payment_amount'], 2),
+                ];
+            }
+            $deskAdvances = [];
+            foreach ($payDesk['advances'] as $period) {
+                $deskAdvances[] = [
+                    'month' => trim((string)($period['month'] ?? '') . ' ' . (string)($period['year'] ?? '')),
+                    'label' => shaven_date($period['start'], 'F j, Y') . ' through ' . shaven_date($period['end'], 'F j, Y'),
+                    'due' => shaven_date($period['due'], 'F j, Y'),
+                    'amount' => round((float)$deskProfile['p_monthly_amount'], 2),
                 ];
             }
           ?>
@@ -44,7 +55,7 @@ function shaven_render_payment_desk(array $payDesk) {
             · <?php echo shaven_peso($deskProfile['p_monthly_amount']); ?> each month
             · Installed <?php echo h(shaven_date($deskProfile['s_doi'], 'F j, Y')); ?>
           </p>
-          <form method="post" id="pay-desk-form" data-monthly="<?php echo h((string)round((float)$deskProfile['p_monthly_amount'], 2)); ?>" data-open="<?php echo h(json_encode($deskBills, JSON_UNESCAPED_UNICODE)); ?>">
+          <form method="post" id="pay-desk-form" data-subscriber="<?php echo h($deskProfile['s_name']); ?>" data-monthly="<?php echo h((string)round((float)$deskProfile['p_monthly_amount'], 2)); ?>" data-open="<?php echo h(json_encode($deskBills, JSON_UNESCAPED_UNICODE)); ?>" data-advances="<?php echo h(json_encode($deskAdvances, JSON_UNESCAPED_UNICODE)); ?>">
             <input type="hidden" name="csrf" value="<?php echo h(shaven_csrf_token()); ?>">
             <input type="hidden" name="pay_desk" value="1">
             <input type="hidden" name="uid" value="<?php echo (int)$deskProfile['id']; ?>">
@@ -54,6 +65,7 @@ function shaven_render_payment_desk(array $payDesk) {
                   <thead>
                     <tr>
                       <th>Pay</th>
+                      <th>Billing month</th>
                       <th>Billing period</th>
                       <th>Due date</th>
                       <th>Amount</th>
@@ -65,6 +77,7 @@ function shaven_render_payment_desk(array $payDesk) {
                         <td>
                           <input class="shaven-pay-bill" type="checkbox" name="bill_ids[]" value="<?php echo (int)$bill['id']; ?>" data-amount="<?php echo h((string)$bill['payment_amount']); ?>" <?php echo $index === 0 ? 'checked' : ''; ?>>
                         </td>
+                        <td><?php echo h(shaven_billing_month_label($bill)); ?></td>
                         <td><?php echo h(shaven_bill_period_label($bill, $deskProfile['s_doi'])); ?></td>
                         <td><?php echo h(shaven_due_text($bill, $deskProfile['s_doi']) ?: 'No due date'); ?></td>
                         <td><?php echo shaven_peso($bill['payment_amount']); ?></td>
@@ -97,19 +110,34 @@ function shaven_render_payment_desk(array $payDesk) {
                 <p class="text-muted mb-0" id="advance-note">Advance months stay off until every open bill is included.</p>
               </div>
             </div>
-            <ul class="list-unstyled mb-3" id="amount-preview" hidden></ul>
-            <?php if ($payDesk['advances']): ?>
-              <ul class="list-unstyled mb-3" id="advance-preview">
-                <?php foreach ($payDesk['advances'] as $index => $period): ?>
-                  <?php $periodLabel = shaven_date($period['start'], 'F j, Y') . ' through ' . shaven_date($period['end'], 'F j, Y'); ?>
-                  <li class="shaven-advance-line" data-n="<?php echo $index + 1; ?>" data-label="<?php echo h($periodLabel); ?>" hidden>
-                    Advance <?php echo $index + 1; ?>: <?php echo h($periodLabel); ?>, due <?php echo h(shaven_date($period['due'], 'F j, Y')); ?>
-                  </li>
-                <?php endforeach; ?>
-              </ul>
-            <?php endif; ?>
+            <div id="post-preview-wrap" class="mb-3" hidden>
+              <p class="mb-1 font-weight-bold">Months that will be posted</p>
+              <ul class="list-unstyled mb-0" id="amount-preview"></ul>
+            </div>
             <button class="btn btn-primary" type="submit">Post payment</button>
           </form>
+          <div class="modal fade" id="pay-desk-confirm" tabindex="-1" role="dialog" aria-labelledby="pay-desk-confirm-title" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-scrollable" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="pay-desk-confirm-title">Review payment</h5>
+                  <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                  </button>
+                </div>
+                <div class="modal-body">
+                  <p class="mb-2" id="pay-desk-confirm-summary"></p>
+                  <p class="mb-1 font-weight-bold">Months that will be posted</p>
+                  <ul class="list-unstyled mb-0" id="pay-desk-confirm-months"></ul>
+                  <p class="text-muted small mt-3 mb-0">Cash stays on your account until you submit a remittance batch. An admin confirms the batch.</p>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                  <button type="button" class="btn btn-primary" id="pay-desk-confirm-submit">Confirm and post</button>
+                </div>
+              </div>
+            </div>
+          </div>
         <?php endif; ?>
       </div>
     </div>

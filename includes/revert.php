@@ -352,6 +352,137 @@ function shaven_revert_close($conn, $userId, $paymentId) {
     return ['ok' => true, 'error' => 'The revert request was closed. The payment stays paid because it was already remitted.'];
 }
 
+function shaven_revert_ids($rawIds) {
+    $ids = [];
+    foreach ((array)$rawIds as $value) {
+        $id = (int)$value;
+        if ($id > 0) {
+            $ids[$id] = $id;
+        }
+    }
+    return array_values($ids);
+}
+
+function shaven_revert_request_many($conn, $userId, $rawIds) {
+    $ids = shaven_revert_ids($rawIds);
+    if (!$ids) {
+        return ['ok' => false, 'error' => 'Select at least one payment to request.'];
+    }
+    if (count($ids) > 200) {
+        return ['ok' => false, 'error' => 'Request up to 200 payments at a time.'];
+    }
+    $done = 0;
+    $skipped = 0;
+    foreach ($ids as $paymentId) {
+        $result = shaven_revert_request($conn, $userId, $paymentId);
+        if ($result['ok']) {
+            $done++;
+        } else {
+            $skipped++;
+        }
+    }
+    if ($done < 1) {
+        return ['ok' => false, 'error' => 'None of the selected payments could be requested for revert.'];
+    }
+    $message = $done === 1
+        ? '1 revert was requested and is waiting for approval.'
+        : $done . ' reverts were requested and are waiting for approval.';
+    if ($skipped > 0) {
+        $message .= ' ' . $skipped . ' selection' . ($skipped === 1 ? ' was' : 's were') . ' skipped.';
+    }
+    return ['ok' => true, 'error' => $message];
+}
+
+function shaven_revert_cancel_many($conn, $userId, $rawIds) {
+    $ids = shaven_revert_ids($rawIds);
+    if (!$ids) {
+        return ['ok' => false, 'error' => 'Select at least one request to cancel.'];
+    }
+    if (count($ids) > 200) {
+        return ['ok' => false, 'error' => 'Cancel up to 200 requests at a time.'];
+    }
+    $done = 0;
+    $skipped = 0;
+    foreach ($ids as $paymentId) {
+        $result = shaven_revert_cancel($conn, $userId, $paymentId);
+        if ($result['ok']) {
+            $done++;
+        } else {
+            $skipped++;
+        }
+    }
+    if ($done < 1) {
+        return ['ok' => false, 'error' => 'None of the selected revert requests could be cancelled.'];
+    }
+    $message = $done === 1
+        ? '1 revert request was cancelled.'
+        : $done . ' revert requests were cancelled.';
+    if ($skipped > 0) {
+        $message .= ' ' . $skipped . ' selection' . ($skipped === 1 ? ' was' : 's were') . ' skipped.';
+    }
+    return ['ok' => true, 'error' => $message];
+}
+
+function shaven_revert_approve_many($conn, $userId, $rawIds) {
+    $ids = shaven_revert_ids($rawIds);
+    if (!$ids) {
+        return ['ok' => false, 'error' => 'Select at least one request to approve.'];
+    }
+    if (count($ids) > 200) {
+        return ['ok' => false, 'error' => 'Approve up to 200 requests at a time.'];
+    }
+    $done = 0;
+    $skipped = 0;
+    foreach ($ids as $paymentId) {
+        $result = shaven_revert_approve($conn, $userId, $paymentId);
+        if ($result['ok']) {
+            $done++;
+        } else {
+            $skipped++;
+        }
+    }
+    if ($done < 1) {
+        return ['ok' => false, 'error' => 'None of the selected revert requests could be approved.'];
+    }
+    $message = $done === 1
+        ? '1 revert was approved. That bill is unpaid again.'
+        : $done . ' reverts were approved. Those bills are unpaid again.';
+    if ($skipped > 0) {
+        $message .= ' ' . $skipped . ' selection' . ($skipped === 1 ? ' was' : 's were') . ' skipped.';
+    }
+    return ['ok' => true, 'error' => $message];
+}
+
+function shaven_revert_close_many($conn, $userId, $rawIds) {
+    $ids = shaven_revert_ids($rawIds);
+    if (!$ids) {
+        return ['ok' => false, 'error' => 'Select at least one remitted request to close.'];
+    }
+    if (count($ids) > 200) {
+        return ['ok' => false, 'error' => 'Close up to 200 requests at a time.'];
+    }
+    $done = 0;
+    $skipped = 0;
+    foreach ($ids as $paymentId) {
+        $result = shaven_revert_close($conn, $userId, $paymentId);
+        if ($result['ok']) {
+            $done++;
+        } else {
+            $skipped++;
+        }
+    }
+    if ($done < 1) {
+        return ['ok' => false, 'error' => 'None of the selected remitted requests could be closed.'];
+    }
+    $message = $done === 1
+        ? '1 remitted revert request was closed.'
+        : $done . ' remitted revert requests were closed.';
+    if ($skipped > 0) {
+        $message .= ' ' . $skipped . ' selection' . ($skipped === 1 ? ' was' : 's were') . ' skipped.';
+    }
+    return ['ok' => true, 'error' => $message];
+}
+
 function shaven_revert_button($action, $paymentId, $label, $class, $confirm) {
     echo '<form method="post" class="mb-0" onsubmit="return confirm(' . htmlspecialchars(json_encode($confirm), ENT_QUOTES, 'UTF-8') . ');">';
     echo '<input type="hidden" name="csrf" value="' . h(shaven_csrf_token()) . '">';
@@ -364,13 +495,68 @@ function shaven_revert_button($action, $paymentId, $label, $class, $confirm) {
 function shaven_revert_table(array $rows, $userId, $level, $mode) {
     $userId = (int)$userId;
     $level = (int)$level;
+    $batch = ($mode === 'ask' || $mode === 'approve');
+    $columns = $batch ? 10 : 9;
+    $canRequestAny = false;
+    $canCancelAny = false;
+    $canApproveAny = false;
+    $canCloseAny = false;
+    if ($mode === 'ask') {
+        foreach ($rows as $row) {
+            if (shaven_revert_can_request($row, $userId, $level)) {
+                $canRequestAny = true;
+            }
+            if (shaven_revert_can_cancel($row, $userId, $level)) {
+                $canCancelAny = true;
+            }
+        }
+    } elseif ($mode === 'approve') {
+        foreach ($rows as $row) {
+            if (shaven_revert_is_remitted($row)) {
+                $canCloseAny = true;
+            } elseif (shaven_revert_can_approve($row, $userId, $level)) {
+                $canApproveAny = true;
+            }
+        }
+    }
+    $batchReady = ($mode === 'ask' && ($canRequestAny || $canCancelAny))
+        || ($mode === 'approve' && ($canApproveAny || $canCloseAny));
     ?>
+    <?php if ($batchReady): ?>
+    <form method="post" id="revert-batch" class="d-none">
+      <input type="hidden" name="csrf" value="<?php echo h(shaven_csrf_token()); ?>">
+      <input type="hidden" name="revert_action" id="revert-batch-action" value="">
+    </form>
+    <div class="px-3 pt-3 d-flex flex-wrap align-items-center" style="gap:.5rem;">
+      <?php if ($canRequestAny): ?>
+        <button class="btn btn-sm btn-warning" type="submit" form="revert-batch" data-revert-batch="request" onclick="return window.shavenRevertBatch && window.shavenRevertBatch('request');">Request selected</button>
+      <?php endif; ?>
+      <?php if ($canCancelAny): ?>
+        <button class="btn btn-sm btn-default" type="submit" form="revert-batch" data-revert-batch="cancel" onclick="return window.shavenRevertBatch && window.shavenRevertBatch('cancel');">Cancel selected</button>
+      <?php endif; ?>
+      <?php if ($canApproveAny): ?>
+        <button class="btn btn-sm btn-warning" type="submit" form="revert-batch" data-revert-batch="approve" onclick="return window.shavenRevertBatch && window.shavenRevertBatch('approve');">Approve selected</button>
+      <?php endif; ?>
+      <?php if ($canCloseAny): ?>
+        <button class="btn btn-sm btn-default" type="submit" form="revert-batch" data-revert-batch="close" onclick="return window.shavenRevertBatch && window.shavenRevertBatch('close');">Close selected</button>
+      <?php endif; ?>
+      <span class="text-muted small" id="revert-batch-count">0 selected</span>
+    </div>
+    <?php endif; ?>
     <div class="table-responsive">
       <table class="table table-striped mb-0">
         <thead>
           <tr>
+            <?php if ($batch): ?>
+              <th style="width:42px;">
+                <?php if ($batchReady): ?>
+                  <input type="checkbox" id="revert-batch-all" aria-label="Select all visible payments">
+                <?php endif; ?>
+              </th>
+            <?php endif; ?>
             <th>Account</th>
             <th>Subscriber</th>
+            <th>Billing month</th>
             <th>Billing period</th>
             <th>Due date</th>
             <th>Posted</th>
@@ -381,11 +567,12 @@ function shaven_revert_table(array $rows, $userId, $level, $mode) {
         </thead>
         <tbody>
         <?php if (!$rows): ?>
-          <tr><td colspan="8"><?php echo $mode === 'approve' ? 'No revert request is waiting.' : 'No paid bill is waiting to be reverted.'; ?></td></tr>
+          <tr><td colspan="<?php echo (int)$columns; ?>"><?php echo $mode === 'approve' ? 'No revert request is waiting.' : 'No paid bill is waiting to be reverted.'; ?></td></tr>
         <?php endif; ?>
         <?php foreach ($rows as $row): ?>
           <?php
             $due = shaven_due_text($row, $row['s_doi']);
+            $month = shaven_billing_month_label($row);
             $period = shaven_bill_period_label($row, $row['s_doi']);
             $hold = shaven_revert_hold_label($row);
             $poster = trim((string)($row['poster'] ?? ''));
@@ -399,14 +586,36 @@ function shaven_revert_table(array $rows, $userId, $level, $mode) {
             $find = strtolower(implode(' ', [
                 $row['account_no'] ?? '',
                 $row['s_name'] ?? '',
+                $month,
                 $period,
                 $due,
                 $poster,
                 $requester,
                 $hold,
             ]));
+            $batchKind = '';
+            if ($mode === 'ask') {
+                if (shaven_revert_can_request($row, $userId, $level)) {
+                    $batchKind = 'request';
+                } elseif (shaven_revert_can_cancel($row, $userId, $level)) {
+                    $batchKind = 'cancel';
+                }
+            } elseif ($mode === 'approve') {
+                if (shaven_revert_is_remitted($row)) {
+                    $batchKind = 'close';
+                } elseif (shaven_revert_can_approve($row, $userId, $level)) {
+                    $batchKind = 'approve';
+                }
+            }
           ?>
           <tr data-revert-row data-find="<?php echo h($find); ?>">
+            <?php if ($batch): ?>
+              <td>
+                <?php if ($batchKind !== ''): ?>
+                  <input class="revert-batch-check" type="checkbox" name="payment_ids[]" value="<?php echo (int)$row['id']; ?>" form="revert-batch" data-revert-kind="<?php echo h($batchKind); ?>" aria-label="Select payment">
+                <?php endif; ?>
+              </td>
+            <?php endif; ?>
             <td><span class="shaven-account-no"><?php echo h(trim((string)($row['account_no'] ?? '')) !== '' ? $row['account_no'] : 'No account number'); ?></span></td>
             <td>
               <?php echo h($row['s_name']); ?>
@@ -414,6 +623,7 @@ function shaven_revert_table(array $rows, $userId, $level, $mode) {
                 <div class="text-muted small">Requested<?php echo $requester !== '' ? ' by ' . h($requester) : ''; ?></div>
               <?php endif; ?>
             </td>
+            <td><?php echo h($month); ?></td>
             <td><?php echo h($period); ?></td>
             <td><?php echo $due !== '' ? '<span class="shaven-due-date">' . h($due) . '</span>' : 'No due date'; ?></td>
             <td><?php echo h($poster); ?><div class="text-muted small"><?php echo h(shaven_date($row['payment_date'], 'M j, Y g:i A')); ?></div></td>
@@ -443,5 +653,70 @@ function shaven_revert_table(array $rows, $userId, $level, $mode) {
         </tbody>
       </table>
     </div>
+    <?php if ($batchReady): ?>
+    <script>
+    (function () {
+      if (window.shavenRevertBatchReady) return;
+      window.shavenRevertBatchReady = true;
+      var all = document.getElementById('revert-batch-all');
+      var actionInput = document.getElementById('revert-batch-action');
+      var countNode = document.getElementById('revert-batch-count');
+      function visibleChecks() {
+        return Array.prototype.slice.call(document.querySelectorAll('[data-revert-row]:not(.d-none) .revert-batch-check'));
+      }
+      function syncCount() {
+        if (!countNode) return;
+        var selected = document.querySelectorAll('.revert-batch-check:checked').length;
+        countNode.textContent = selected + ' selected';
+        if (all) {
+          var boxes = visibleChecks();
+          all.checked = boxes.length > 0 && boxes.every(function (box) { return box.checked; });
+          all.indeterminate = !all.checked && boxes.some(function (box) { return box.checked; });
+        }
+      }
+      document.querySelectorAll('.revert-batch-check').forEach(function (box) {
+        box.addEventListener('change', syncCount);
+      });
+      if (all) {
+        all.addEventListener('change', function () {
+          visibleChecks().forEach(function (box) { box.checked = all.checked; });
+          syncCount();
+        });
+      }
+      window.shavenRevertBatch = function (kind) {
+        var selected = Array.prototype.slice.call(document.querySelectorAll('.revert-batch-check:checked'));
+        var matched = selected.filter(function (box) {
+          return (box.getAttribute('data-revert-kind') || '') === kind;
+        });
+        var emptyMessages = {
+          request: 'Select at least one payment to request.',
+          cancel: 'Select at least one waiting request to cancel.',
+          approve: 'Select at least one request to approve.',
+          close: 'Select at least one remitted request to close.'
+        };
+        if (!matched.length) {
+          window.alert(emptyMessages[kind] || 'Select at least one payment.');
+          return false;
+        }
+        selected.forEach(function (box) {
+          box.disabled = (box.getAttribute('data-revert-kind') || '') !== kind;
+        });
+        if (actionInput) actionInput.value = kind + '_batch';
+        var confirmMessages = {
+          request: 'Request revert for ' + matched.length + ' payment' + (matched.length === 1 ? '' : 's') + '? An admin or the owner must approve.',
+          cancel: 'Cancel ' + matched.length + ' revert request' + (matched.length === 1 ? '' : 's') + '? Those payments stay paid.',
+          approve: 'Approve ' + matched.length + ' revert' + (matched.length === 1 ? '' : 's') + '? Those bills become unpaid again.',
+          close: 'Close ' + matched.length + ' remitted request' + (matched.length === 1 ? '' : 's') + '? Those payments stay paid.'
+        };
+        if (!window.confirm(confirmMessages[kind] || 'Continue with the selected payments?')) {
+          selected.forEach(function (box) { box.disabled = false; });
+          return false;
+        }
+        return true;
+      };
+      syncCount();
+    })();
+    </script>
+    <?php endif; ?>
     <?php
 }

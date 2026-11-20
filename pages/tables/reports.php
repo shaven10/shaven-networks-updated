@@ -202,39 +202,6 @@ $sessionID=$_SESSION['usr_id'];
 
 
                       
-                              $payment_day=date_format($date,"d");
-                              $p_amount=$row['p_monthly_amount'];
-                            
-                              if ($days>30){
-
-                              if ($DofToday>=$payment_day){   
-
-                                        $sql1 = "SELECT * FROM tbl_payments where payment_year='$YearofToday' and payment_month='$MonthofToday' and payment_uid='$pid'";
-                                        $result1 = $conn->query($sql1);
-                                        //echo $result1->num_rows;
-                                        if ($result1->num_rows > 0) {
-                                         
-                                          
-                                        }else{
-                                            //add to colektahonon table
-                                            $sql = "INSERT INTO tbl_payments (payment_year,payment_amount,payment_day,payment_month,payment_uid,p_timestamp)
-                                            VALUES ('$YearofToday','$p_amount','$payment_day','$MonthofToday','$pid',now());";
-                                            if ($conn->multi_query($sql) === TRUE) {
-                                              // echo '<script> alert("New records created successfully");</script>'; 
-                                              } else {
-                                                  echo "Error: " . $sql . "<br>" . $conn->error;
-                                                  }
-                                            // 
-                                        }
-                                          
-                                
-                                            
-                              }else{
-
-                                //do nothing
-                              }
-                            }
-                             
 
                      
                       }

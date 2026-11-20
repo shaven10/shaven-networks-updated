@@ -36,6 +36,7 @@ $mine = shaven_remit_batches_for($conn, $userId);
 $canConfirm = shaven_role_is(1, 2);
 $pending = $canConfirm ? shaven_remit_pending($conn, $userId) : [];
 $field = $canConfirm ? shaven_remit_field_holding($conn) : [];
+$techConfirmed = $canConfirm ? shaven_remit_confirmed_tech($conn) : [];
 
 function shaven_remit_rows_table(array $rows, $withPick) {
     ?>
@@ -45,6 +46,7 @@ function shaven_remit_rows_table(array $rows, $withPick) {
           <tr>
             <?php if ($withPick): ?><th style="width:2.5rem;"></th><?php endif; ?>
             <th>Subscriber</th>
+            <th>Billing month</th>
             <th>Billing period</th>
             <th>Due date</th>
             <th>Posted</th>
@@ -60,6 +62,7 @@ function shaven_remit_rows_table(array $rows, $withPick) {
               <td><input class="remit-pick" type="checkbox" name="payment_ids[]" value="<?php echo (int)$row['id']; ?>"></td>
             <?php endif; ?>
             <td><?php echo h($row['s_name']); ?></td>
+            <td><?php echo h(shaven_billing_month_label($row)); ?></td>
             <td><?php echo h(shaven_bill_period_label($row, $row['s_doi'])); ?></td>
             <td><?php echo $due !== '' ? '<span class="shaven-due-date">' . h($due) . '</span>' : '—'; ?></td>
             <td><?php echo h(shaven_date($row['payment_date'], 'M j, Y g:i A')); ?></td>
@@ -111,10 +114,13 @@ function shaven_remit_batch_panel(array $batch, $withConfirm) {
             <?php endif; ?>
           </span>
           <span class="shaven-remit-batch-meta">
-            <?php if ($withConfirm): ?><?php echo h($batch['collector'] ?? ''); ?> submitted<?php else: ?>Submitted<?php endif; ?>
+            <?php
+              $collector = trim((string)($batch['collector'] ?? ''));
+              echo $collector !== '' ? h($collector) . ' submitted ' : 'Submitted ';
+            ?>
             <?php echo h(shaven_date($batch['submitted_at'], 'M j, Y g:i A')); ?>
             · <?php echo $count; ?> payment<?php echo $count === 1 ? '' : 's'; ?>
-            · <?php echo shaven_peso($batch['live_amount'] ?? 0); ?>
+            · <?php echo shaven_peso($batch['live_amount'] ?? ($batch['amount'] ?? 0)); ?>
             <?php if ($status === 'confirmed' && !empty($batch['confirmer'])): ?>
               · confirmed by <?php echo h($batch['confirmer']); ?>
               <?php echo h(shaven_date($batch['confirmed_at'] ?? '', 'M j, Y g:i A')); ?>
@@ -182,6 +188,22 @@ shaven_page_open('Remittances', 'Remittances');
         </tbody>
       </table>
     <?php endif; ?>
+  </div>
+</div>
+
+<div class="card" id="tech-confirmed">
+  <div class="card-header">
+    <h3 class="card-title">Approved technician remittances</h3>
+    <?php shaven_remit_batch_tools($techConfirmed); ?>
+  </div>
+  <div class="card-body">
+    <p class="text-muted">Batches technicians submitted and an owner or admin confirmed. Expand a batch to see the payments.</p>
+    <?php if (!$techConfirmed): ?>
+      <p class="mb-0">No technician remittance has been approved yet.</p>
+    <?php endif; ?>
+    <?php foreach ($techConfirmed as $batch): ?>
+      <?php shaven_remit_batch_panel($batch, false); ?>
+    <?php endforeach; ?>
   </div>
 </div>
 <?php endif; ?>

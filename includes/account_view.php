@@ -73,44 +73,73 @@ function shaven_render_owner_bill_tools($subscriberId, array $bill) {
     $billId = (int)$bill['id'];
     $amount = number_format((float)$bill['payment_amount'], 2, '.', '');
     $paid = (int)($bill['status'] ?? 0) === 1;
+    $action = shaven_url('pages/tables/subscriber_view.php?uid=' . $subscriberId);
+    $amountForm = 'bill-amount-' . $billId;
+    $deleteForm = 'bill-delete-' . $billId;
     ?>
     <div class="shaven-bill-tools">
       <?php if (!$paid): ?>
-      <form method="post" class="shaven-bill-amount" action="<?php echo h(shaven_url('pages/tables/subscriber_view.php?uid=' . $subscriberId)); ?>">
+      <form method="post" class="d-none" id="<?php echo h($amountForm); ?>" action="<?php echo h($action); ?>">
         <input type="hidden" name="csrf" value="<?php echo h(shaven_csrf_token()); ?>">
         <input type="hidden" name="uid" value="<?php echo $subscriberId; ?>">
         <input type="hidden" name="bill_id" value="<?php echo $billId; ?>">
         <input type="hidden" name="action" value="update_amount">
-        <input class="form-control form-control-sm" type="number" name="amount" min="0.01" max="1000000" step="0.01" value="<?php echo h($amount); ?>" required aria-label="Bill amount">
-        <button class="btn btn-sm btn-default" type="submit">Update amount</button>
       </form>
+      <div class="shaven-bill-amount">
+        <input class="form-control form-control-sm" form="<?php echo h($amountForm); ?>" type="number" name="amount" min="0.01" max="1000000" step="0.01" value="<?php echo h($amount); ?>" required aria-label="Bill amount">
+        <button class="btn btn-sm btn-default" type="submit" form="<?php echo h($amountForm); ?>">Update amount</button>
+      </div>
       <?php endif; ?>
-      <form method="post" action="<?php echo h(shaven_url('pages/tables/subscriber_view.php?uid=' . $subscriberId)); ?>" onsubmit="return confirm('Delete this bill?');">
+      <form method="post" class="d-none" id="<?php echo h($deleteForm); ?>" action="<?php echo h($action); ?>" onsubmit="return confirm('Delete this bill?');">
         <input type="hidden" name="csrf" value="<?php echo h(shaven_csrf_token()); ?>">
         <input type="hidden" name="uid" value="<?php echo $subscriberId; ?>">
         <input type="hidden" name="bill_id" value="<?php echo $billId; ?>">
         <input type="hidden" name="action" value="delete_bill">
-        <button class="btn btn-sm btn-danger" type="submit">Delete bill</button>
       </form>
+      <button class="btn btn-sm btn-danger" type="submit" form="<?php echo h($deleteForm); ?>" title="Delete bill" aria-label="Delete bill"><i class="fas fa-trash"></i></button>
     </div>
     <?php
 }
 
 function shaven_render_open_bills(array $account, $withChecks = false, $ownerTools = false) {
-    $columns = ($withChecks ? 6 : 5) + ($ownerTools ? 1 : 0);
+    $batchDelete = $ownerTools && !$withChecks && !empty($account['open_bills']);
+    $showChecks = $withChecks || $batchDelete;
+    $columns = ($showChecks ? 6 : 5) + ($ownerTools ? 1 : 0);
+    $subscriberId = (int)($account['profile']['id'] ?? 0);
+    $action = shaven_url('pages/tables/subscriber_view.php?uid=' . $subscriberId);
     ?>
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Open bills</h3></div>
+      <div class="card-header">
+        <h3 class="card-title">Open bills</h3>
+        <?php if ($batchDelete): ?>
+          <div class="card-tools">
+            <button class="btn btn-sm btn-danger" type="submit" form="open-bills-batch" onclick="return confirm('Delete the selected open bills?');">Delete selected</button>
+          </div>
+        <?php endif; ?>
+      </div>
+      <?php if ($batchDelete): ?>
+      <form method="post" id="open-bills-batch" action="<?php echo h($action); ?>">
+        <input type="hidden" name="csrf" value="<?php echo h(shaven_csrf_token()); ?>">
+        <input type="hidden" name="uid" value="<?php echo $subscriberId; ?>">
+        <input type="hidden" name="action" value="delete_bills">
+      </form>
+      <?php endif; ?>
       <div class="card-body table-responsive p-0">
         <table class="table table-striped mb-0">
           <thead>
             <tr>
-              <?php if ($withChecks): ?><th style="width:42px;"></th><?php endif; ?>
+              <?php if ($showChecks): ?>
+                <th style="width:42px;">
+                  <?php if ($batchDelete): ?>
+                    <input type="checkbox" id="open-bills-all" aria-label="Select all open bills" checked>
+                  <?php endif; ?>
+                </th>
+              <?php endif; ?>
+              <th>Billing month</th>
               <th>Billing period</th>
               <th>Due date</th>
               <th>Amount</th>
               <th>Payment status</th>
-              <th>Billed</th>
               <?php if ($ownerTools): ?><th>Options</th><?php endif; ?>
             </tr>
           </thead>
@@ -120,22 +149,37 @@ function shaven_render_open_bills(array $account, $withChecks = false, $ownerToo
           <?php endif; ?>
           <?php foreach ($account['open_bills'] as $bill): ?>
             <tr>
-              <?php if ($withChecks): ?>
-                <td><input class="bill-check" type="checkbox" name="bill_ids[]" value="<?php echo (int)$bill['id']; ?>" data-amount="<?php echo h($bill['payment_amount']); ?>" checked></td>
+              <?php if ($showChecks): ?>
+                <td>
+                  <input class="bill-check<?php echo $batchDelete ? ' open-bill-check' : ''; ?>" type="checkbox" name="bill_ids[]" value="<?php echo (int)$bill['id']; ?>" data-amount="<?php echo h($bill['payment_amount']); ?>"<?php echo $withChecks || $batchDelete ? ' checked' : ''; ?><?php echo $batchDelete ? ' form="open-bills-batch"' : ''; ?>>
+                </td>
               <?php endif; ?>
               <?php $openPeriod = shaven_bill_period($bill, $account['profile']['s_doi'] ?? ''); ?>
-              <td><?php echo h($openPeriod ? shaven_bill_period_label($bill, $account['profile']['s_doi'] ?? '') : ($bill['payment_month'] . ' ' . $bill['payment_year'])); ?></td>
+              <td><?php echo h(shaven_billing_month_label($bill)); ?></td>
+              <td><?php echo h(shaven_bill_period_label($bill, $account['profile']['s_doi'] ?? '')); ?></td>
               <td><?php echo !empty($openPeriod['due']) ? '<span class="shaven-due-date">' . h(shaven_date($openPeriod['due'], 'F j, Y')) . '</span>' : h((string)(int)$bill['payment_day']); ?></td>
               <td><?php echo shaven_peso($bill['payment_amount']); ?></td>
               <td><?php echo shaven_payment_status_badge($bill['status'] ?? 0); ?></td>
-              <td><?php echo h(shaven_date($bill['p_timestamp'])); ?></td>
               <?php if ($ownerTools): ?>
-                <td><?php shaven_render_owner_bill_tools((int)$account['profile']['id'], $bill); ?></td>
+                <td><?php shaven_render_owner_bill_tools($subscriberId, $bill); ?></td>
               <?php endif; ?>
             </tr>
           <?php endforeach; ?>
           </tbody>
         </table>
+        <?php if ($batchDelete): ?>
+        <script>
+        (function () {
+          var all = document.getElementById('open-bills-all');
+          if (!all) return;
+          all.addEventListener('change', function () {
+            document.querySelectorAll('.open-bill-check').forEach(function (box) {
+              box.checked = all.checked;
+            });
+          });
+        })();
+        </script>
+        <?php endif; ?>
       </div>
     </div>
     <?php

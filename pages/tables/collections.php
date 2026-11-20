@@ -126,7 +126,10 @@ $sessionID=$_SESSION['usr_id'];
             <?php
               require_once __DIR__ . '/../../includes/payment_desk_view.php';
               shaven_render_payment_desk($payDesk);
+              $deskSubscriberId = (int)($payDesk['requested_id'] ?? 0);
+              $showAllOpenBills = $deskSubscriberId <= 0 || empty($payDesk['profile']);
             ?>
+            <?php if ($showAllOpenBills): ?>
             <div class="card">
               <div class="card-header">
                 <h3 class="card-title">Open bills</h3>
@@ -142,6 +145,7 @@ $sessionID=$_SESSION['usr_id'];
                 
                
                     <th>Name</th>
+                    <th>Billing month</th>
                     <th>Billing period</th>
                       <th>Due date</th>
                     
@@ -193,6 +197,7 @@ $sessionID=$_SESSION['usr_id'];
                      
                 
                         <td>".$row['s_name']."</td>
+                        ".shaven_billing_month_cell($row)."
                         <td class=\"shaven-period\" data-order=\"".h($periodOrder)."\">".h($periodLabel)."</td>
                          ".shaven_due_cell($row)."
                        
@@ -232,6 +237,7 @@ $sessionID=$_SESSION['usr_id'];
               <!-- /.card-body -->
             </div>
             <!-- /.card -->
+            <?php endif; ?>
           </div>
           <!-- /.col -->
         </div>
@@ -284,57 +290,68 @@ $sessionID=$_SESSION['usr_id'];
 <!-- Page specific script -->
 <script>
   $(function () {
-    $("#example1").DataTable({
-      footerCallback: function (row, data, start, end, display) {
-            var api = this.api();
- 
-            // Remove the formatting to get integer data for summation
-            var intVal = function (i) {
-                return typeof i === 'string' ? i.replace(/[\Php,]/g, '') * 1 : typeof i === 'number' ? i : 0;
-            };
- 
-            // Total over all pages
-            total = api
-                .column(3)
-                .data()
-                .reduce(function (a, b) {
-                    return intVal(a) + intVal(b);
-                }, 0);
- 
-            // Total over this page
-            pageTotal = api
-                .column(3, { page: 'current' })
-                .data()
-                .reduce(function (a, b) {
-                    return intVal(a) + intVal(b);
-                }, 0);
- 
-            // Update footer
-            $(api.column(3).footer()).html('&#x20B1;' + pageTotal + ' (&#x20B1;' + total + ' total)');
-        },
-  
-      "responsive": true, "lengthChange": false, "autoWidth": false,
-      "columnDefs": [
-        { "responsivePriority": 1, "targets": 0 },
-        { "responsivePriority": 2, "targets": 1 },
-        { "responsivePriority": 4, "targets": 2 },
-        { "responsivePriority": 3, "targets": 3 },
-        { "responsivePriority": 5, "targets": 4 }
-      ],
-      "buttons": []
-    }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
+    if ($("#example1").length) {
+      $("#example1").DataTable({
+        footerCallback: function (row, data, start, end, display) {
+              var api = this.api();
+   
+              // Remove the formatting to get integer data for summation
+              var intVal = function (i) {
+                  return typeof i === 'string' ? i.replace(/[\Php,]/g, '') * 1 : typeof i === 'number' ? i : 0;
+              };
+   
+              // Total over all pages
+              total = api
+                  .column(3)
+                  .data()
+                  .reduce(function (a, b) {
+                      return intVal(a) + intVal(b);
+                  }, 0);
+   
+              // Total over this page
+              pageTotal = api
+                  .column(3, { page: 'current' })
+                  .data()
+                  .reduce(function (a, b) {
+                      return intVal(a) + intVal(b);
+                  }, 0);
+   
+              // Update footer
+              $(api.column(3).footer()).html('&#x20B1;' + pageTotal + ' (&#x20B1;' + total + ' total)');
+          },
+    
+        "responsive": true, "lengthChange": false, "autoWidth": false,
+        "columnDefs": [
+          { "responsivePriority": 1, "targets": 0 },
+          { "responsivePriority": 2, "targets": 1 },
+          { "responsivePriority": 4, "targets": 2 },
+          { "responsivePriority": 3, "targets": 3 },
+          { "responsivePriority": 5, "targets": 4 }
+        ],
+        "buttons": []
+      }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
+    }
     var payForm = document.getElementById('pay-desk-form');
     if (payForm) {
       var boxes = Array.prototype.slice.call(payForm.querySelectorAll('.shaven-pay-bill'));
       var advance = payForm.querySelector('[name="advance_months"]');
       var amountInput = payForm.querySelector('[name="advance_amount"]');
-      var preview = payForm.querySelectorAll('.shaven-advance-line');
+      var mediumInput = payForm.querySelector('[name="pay_medium"]');
       var amountPreview = document.getElementById('amount-preview');
+      var previewWrap = document.getElementById('post-preview-wrap');
       var totalNode = document.getElementById('pay-desk-total');
       var note = document.getElementById('advance-note');
+      var confirmModal = $('#pay-desk-confirm');
+      var confirmSummary = document.getElementById('pay-desk-confirm-summary');
+      var confirmMonths = document.getElementById('pay-desk-confirm-months');
+      var confirmSubmit = document.getElementById('pay-desk-confirm-submit');
       var monthly = parseFloat(payForm.getAttribute('data-monthly') || '0');
+      var subscriberName = payForm.getAttribute('data-subscriber') || 'Subscriber';
+      var allowSubmit = false;
       var openBills = [];
+      var advancePeriods = [];
       try { openBills = JSON.parse(payForm.getAttribute('data-open') || '[]'); } catch (error) { openBills = []; }
+      try { advancePeriods = JSON.parse(payForm.getAttribute('data-advances') || '[]'); } catch (error) { advancePeriods = []; }
       function money(cents) {
         return (cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       }
@@ -350,8 +367,21 @@ $sessionID=$_SESSION['usr_id'];
         if (!/^\d+(\.\d{1,2})?$/.test(raw)) return 0;
         return cents(raw);
       }
-      function renderAmount(cashCents) {
-        if (!amountPreview) return;
+      function monthTitle(entry) {
+        var month = String(entry.month || '').trim();
+        var label = String(entry.label || '').trim();
+        var due = String(entry.due || '').trim();
+        var title = month || label || 'Billing month';
+        if (label && month && label !== month) title += ' · ' + label;
+        if (due) title += ' · due ' + due;
+        return title;
+      }
+      function setPreview(lines) {
+        if (!amountPreview || !previewWrap) return;
+        amountPreview.innerHTML = lines.map(function (line) { return '<li>' + line + '</li>'; }).join('');
+        previewWrap.hidden = lines.length === 0;
+      }
+      function amountLines(cashCents) {
         var left = cashCents;
         var monthlyCents = cents(monthly);
         var lines = [];
@@ -362,23 +392,57 @@ $sessionID=$_SESSION['usr_id'];
           var applied = Math.min(left, billCents);
           var remain = billCents - applied;
           left -= applied;
-          var line = bill.label + ': ₱' + money(applied) + ' posted';
+          var line = monthTitle(bill) + ': ₱' + money(applied) + ' posted';
           if (remain > 0) line += '. ₱' + money(remain) + ' remains open';
           else if (left > 0) line += '. Balance forwarded to the next month';
           lines.push(line);
         });
-        Array.prototype.forEach.call(preview, function (period) {
+        advancePeriods.forEach(function (period) {
           if (left <= 0 || monthlyCents < 1) return;
           var applied = Math.min(left, monthlyCents);
           var remain = monthlyCents - applied;
           left -= applied;
-          var line = period.getAttribute('data-label') + ': ₱' + money(applied) + ' posted';
+          var line = monthTitle(period) + ': ₱' + money(applied) + ' posted';
           if (remain > 0) line += '. ₱' + money(remain) + ' remains open';
           else if (left > 0) line += '. Balance forwarded to the next month';
           lines.push(line);
         });
-        amountPreview.innerHTML = lines.map(function (line) { return '<li>' + line + '</li>'; }).join('');
-        amountPreview.hidden = lines.length === 0;
+        return lines;
+      }
+      function monthLines(months) {
+        var lines = [];
+        boxes.forEach(function (box, index) {
+          if (!box.checked || box.disabled) return;
+          var bill = openBills[index] || {};
+          var amount = cents(box.getAttribute('data-amount') || bill.amount || 0);
+          lines.push(monthTitle(bill) + ': ₱' + money(amount) + ' posted');
+        });
+        for (var i = 0; i < months && i < advancePeriods.length; i++) {
+          var period = advancePeriods[i];
+          lines.push(monthTitle(period) + ': ₱' + money(cents(period.amount || monthly)) + ' posted');
+        }
+        return lines;
+      }
+      function selectedMonths() {
+        if (!advance || advance.disabled) return 0;
+        var months = parseInt(advance.value, 10) || 0;
+        if (months < 0) months = 0;
+        if (months > 12) months = 12;
+        return months;
+      }
+      function selectedTotal(cash, months) {
+        if (cash > 0) return cash / 100;
+        var total = months * monthly;
+        boxes.forEach(function (box) {
+          if (box.checked && !box.disabled) total += parseFloat(box.getAttribute('data-amount') || '0');
+        });
+        return total;
+      }
+      function mediumLabel() {
+        if (!mediumInput) return 'Cash';
+        var value = String(mediumInput.value || 'cash').toLowerCase();
+        if (value === 'gcash') return 'GCash';
+        return 'Cash';
       }
       function syncPayDesk() {
         var cash = amountCents();
@@ -391,19 +455,13 @@ $sessionID=$_SESSION['usr_id'];
           if (amountMode || !ready) {
             advance.value = '0';
           }
-          months = !advance.disabled ? (parseInt(advance.value, 10) || 0) : 0;
-          if (months < 0) months = 0;
-          if (months > 12) months = 12;
+          months = selectedMonths();
         }
         if (amountInput) amountInput.disabled = months > 0;
-        Array.prototype.forEach.call(preview, function (line) {
-          line.hidden = amountMode || !(ready && (parseInt(line.getAttribute('data-n'), 10) || 0) <= months);
-        });
-        if (amountMode) renderAmount(cash);
-        else if (amountPreview) {
-          amountPreview.hidden = true;
-          amountPreview.innerHTML = '';
-        }
+        var lines = amountMode
+          ? amountLines(cash)
+          : (months > 0 || boxes.some(function (box) { return box.checked && !box.disabled; }) ? monthLines(months) : []);
+        setPreview(lines);
         if (note) {
           if (amountMode) {
             note.textContent = openBills.length
@@ -422,13 +480,7 @@ $sessionID=$_SESSION['usr_id'];
           }
         }
         if (totalNode) {
-          var total = amountMode ? cash / 100 : months * monthly;
-          if (!amountMode) {
-            boxes.forEach(function (box) {
-              if (box.checked && !box.disabled) total += parseFloat(box.getAttribute('data-amount') || '0');
-            });
-          }
-          totalNode.textContent = total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          totalNode.textContent = selectedTotal(cash, months).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
       }
       boxes.forEach(function (box, index) {
@@ -444,24 +496,44 @@ $sessionID=$_SESSION['usr_id'];
       if (advance) advance.addEventListener('input', syncPayDesk);
       if (amountInput) amountInput.addEventListener('input', syncPayDesk);
       payForm.addEventListener('submit', function (event) {
-        var cash = amountCents();
-        if (cash > 0) {
-          if (!window.confirm('Post ₱' + money(cash) + ' from the oldest bill forward? Any amount above a month is forwarded to the next month.')) {
-            event.preventDefault();
-          }
+        if (allowSubmit) {
+          allowSubmit = false;
           return;
         }
+        event.preventDefault();
+        var cash = amountCents();
+        var months = selectedMonths();
         var count = boxes.filter(function (box) { return box.checked && !box.disabled; }).length;
-        var months = advance && !advance.disabled ? (parseInt(advance.value, 10) || 0) : 0;
-        if (count < 1 && months < 1) {
-          event.preventDefault();
+        if (cash < 1 && count < 1 && months < 1) {
           window.alert('Select the oldest open bill, enter an advance amount, or enter at least one advance month.');
           return;
         }
-        var message = 'Post ' + count + ' bill' + (count === 1 ? '' : 's');
-        if (months > 0) message += ' and ' + months + ' advance month' + (months === 1 ? '' : 's');
-        if (!window.confirm(message + '?')) event.preventDefault();
+        var lines = cash > 0 ? amountLines(cash) : monthLines(months);
+        if (!lines.length) {
+          window.alert('Nothing to post yet. Check the selected bills, advance amount, or advance months.');
+          return;
+        }
+        var total = selectedTotal(cash, months);
+        var summary = '<strong>' + subscriberName + '</strong> · ' + mediumLabel()
+          + ' · total ₱' + total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (cash > 0) {
+          summary += '<br>Advance amount ₱' + money(cash) + ' applied from the oldest bill forward.';
+        } else {
+          summary += '<br>' + count + ' open bill' + (count === 1 ? '' : 's');
+          if (months > 0) summary += ' and ' + months + ' advance month' + (months === 1 ? '' : 's');
+          summary += '.';
+        }
+        if (confirmSummary) confirmSummary.innerHTML = summary;
+        if (confirmMonths) confirmMonths.innerHTML = lines.map(function (line) { return '<li>' + line + '</li>'; }).join('');
+        if (confirmModal.length) confirmModal.modal('show');
       });
+      if (confirmSubmit) {
+        confirmSubmit.addEventListener('click', function () {
+          allowSubmit = true;
+          if (confirmModal.length) confirmModal.modal('hide');
+          payForm.submit();
+        });
+      }
       syncPayDesk();
     }
     $('#example2').DataTable({

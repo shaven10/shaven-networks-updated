@@ -136,6 +136,22 @@ function shaven_remit_field_holding($conn) {
     );
 }
 
+function shaven_remit_confirmed_tech($conn, $limit = 30) {
+    $limit = max(1, min(100, (int)$limit));
+    $rows = shaven_rows(
+        $conn,
+        "SELECT b.id, b.ref, b.collector_id, b.submitted_at, b.amount, b.item_count, b.status, b.confirmed_at,
+                u.sys_user_fullname AS collector, a.sys_user_fullname AS confirmer
+         FROM tbl_remit_batches b
+         INNER JOIN tbl_sys_users u ON u.id = b.collector_id
+         LEFT JOIN tbl_sys_users a ON a.id = b.confirmed_by
+         WHERE b.status='confirmed' AND u.sys_level=3
+         ORDER BY b.confirmed_at DESC, b.id DESC
+         LIMIT " . $limit
+    );
+    return shaven_remit_attach_items($conn, $rows);
+}
+
 function shaven_remit_waiting($conn, $userId) {
     $rows = shaven_rows(
         $conn,

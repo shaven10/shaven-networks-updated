@@ -44,6 +44,7 @@ function shaven_tinglunon_report($conn) {
         $groups[$id]['bills'][] = [
             'due' => $due,
             'due_label' => shaven_due_text($row, $row['s_doi']) !== '' ? shaven_due_text($row, $row['s_doi']) : 'No due date',
+            'month' => shaven_billing_month_label($row),
             'period' => shaven_bill_period_label($row, $row['s_doi']),
             'amount' => round((float)$row['payment_amount'], 2),
             'payment_status' => shaven_tinglunon_payment_label($row['pay_status'] ?? 0),

@@ -1,0 +1,17 @@
+{
+    "kind": "snapshot",
+    "label": "Auto before unpaid PDF sync 2026-11-19 14:48:21",
+    "created_by": 1,
+    "scope": "transactions",
+    "file": "snap_20261119_144821_auto-before-unpaid-pdf-sync.sql",
+    "bytes": 578407,
+    "created_at": "2026-11-19T14:48:21+08:00",
+    "tables": [
+        "tbl_remittances",
+        "tbl_remit_batches",
+        "tbl_payments",
+        "tbl_finances",
+        "tbl_plan_changes",
+        "tbl_notifications"
+    ]
+}

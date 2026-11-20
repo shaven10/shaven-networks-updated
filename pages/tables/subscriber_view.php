@@ -10,15 +10,26 @@ if (!shaven_role_is(1, 2, 3)) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $uid = (int)($_POST['uid'] ?? 0);
     $action = (string)($_POST['action'] ?? '');
-    if ($action === 'update_amount' || $action === 'delete_bill') {
+    if ($action === 'update_amount' || $action === 'delete_bill' || $action === 'delete_bills') {
         $back = '/pages/tables/subscriber_view.php?uid=' . $uid;
-        if (shaven_role() !== 1 || !shaven_csrf_ok()) {
-            shaven_flash_set($action === 'delete_bill' ? 'Only the owner can delete a bill.' : 'Only the owner can change a bill.', 'err');
+        if (!shaven_owner_can_adjust_bills() || !shaven_csrf_ok()) {
+            if ($action === 'delete_bills') {
+                $denied = 'An admin or the owner can delete bills.';
+            } elseif ($action === 'delete_bill') {
+                $denied = 'An admin or the owner can delete a bill.';
+            } else {
+                $denied = 'An admin or the owner can change a bill.';
+            }
+            shaven_flash_set($denied, 'err');
             shaven_redirect($back);
         }
-        $result = $action === 'delete_bill'
-            ? shaven_owner_delete_bill($conn, $uid, (int)($_POST['bill_id'] ?? 0))
-            : shaven_owner_update_bill_amount($conn, $uid, (int)($_POST['bill_id'] ?? 0), $_POST['amount'] ?? '');
+        if ($action === 'delete_bills') {
+            $result = shaven_owner_delete_bills($conn, $uid, $_POST['bill_ids'] ?? []);
+        } elseif ($action === 'delete_bill') {
+            $result = shaven_owner_delete_bill($conn, $uid, (int)($_POST['bill_id'] ?? 0));
+        } else {
+            $result = shaven_owner_update_bill_amount($conn, $uid, (int)($_POST['bill_id'] ?? 0), $_POST['amount'] ?? '');
+        }
         shaven_flash_set($result['message'], $result['ok'] ? 'ok' : 'err');
         shaven_redirect($back);
     }
@@ -99,7 +110,7 @@ shaven_render_account_profile($account);
   </div>
 </div>
 <?php
-$ownerTools = shaven_role() === 1;
+$ownerTools = shaven_owner_can_adjust_bills();
 shaven_render_open_bills($account, false, $ownerTools);
 shaven_render_payment_history($account, $ownerTools);
 shaven_render_plan_changes($account);

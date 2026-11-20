@@ -63,9 +63,13 @@ function shaven_owner_refresh_batch($conn, $batchId) {
     return $saved['ok'];
 }
 
+function shaven_owner_can_adjust_bills() {
+    return shaven_role_is(1, 2);
+}
+
 function shaven_owner_update_bill_amount($conn, $subscriberId, $billId, $rawAmount) {
-    if (shaven_role() !== 1) {
-        return ['ok' => false, 'message' => 'Only the owner can change a bill.'];
+    if (!shaven_owner_can_adjust_bills()) {
+        return ['ok' => false, 'message' => 'An admin or the owner can change a bill.'];
     }
     $amount = shaven_owner_bill_amount($rawAmount);
     if ($amount === null) {
@@ -112,9 +116,32 @@ function shaven_owner_update_bill_amount($conn, $subscriberId, $billId, $rawAmou
     return ['ok' => true, 'message' => 'The bill amount is now ₱' . number_format($amount, 2) . '.'];
 }
 
+function shaven_owner_delete_bill_locked($conn, $subscriberId, $billId) {
+    $row = shaven_owner_bill_row($conn, $subscriberId, $billId);
+    if (!$row) {
+        return ['ok' => false, 'message' => 'That bill was not found on this subscriber.'];
+    }
+    if (shaven_revert_is_remitted($row)) {
+        return ['ok' => false, 'message' => 'This bill was already remitted, so it stays on the account.'];
+    }
+    if (!shaven_revert_release($conn, $row)) {
+        return ['ok' => false, 'message' => 'The bill was not deleted.'];
+    }
+    $saved = shaven_exec(
+        $conn,
+        "DELETE FROM tbl_payments WHERE id=? AND payment_uid=?",
+        'ii',
+        [(int)$billId, (int)$subscriberId]
+    );
+    if (!$saved['ok'] || (int)$saved['affected'] !== 1) {
+        return ['ok' => false, 'message' => 'The bill was not deleted.'];
+    }
+    return ['ok' => true, 'message' => 'The bill was deleted.'];
+}
+
 function shaven_owner_delete_bill($conn, $subscriberId, $billId) {
-    if (shaven_role() !== 1) {
-        return ['ok' => false, 'message' => 'Only the owner can delete a bill.'];
+    if (!shaven_owner_can_adjust_bills()) {
+        return ['ok' => false, 'message' => 'An admin or the owner can delete a bill.'];
     }
     $subscriberId = (int)$subscriberId;
     $billId = (int)$billId;
@@ -122,29 +149,55 @@ function shaven_owner_delete_bill($conn, $subscriberId, $billId) {
         return ['ok' => false, 'message' => 'That bill was not found on this subscriber.'];
     }
     mysqli_begin_transaction($conn);
-    $row = shaven_owner_bill_row($conn, $subscriberId, $billId);
-    if (!$row) {
+    $result = shaven_owner_delete_bill_locked($conn, $subscriberId, $billId);
+    if (!$result['ok']) {
         mysqli_rollback($conn);
-        return ['ok' => false, 'message' => 'That bill was not found on this subscriber.'];
-    }
-    if (shaven_revert_is_remitted($row)) {
-        mysqli_rollback($conn);
-        return ['ok' => false, 'message' => 'This bill was already remitted, so it stays on the account.'];
-    }
-    if (!shaven_revert_release($conn, $row)) {
-        mysqli_rollback($conn);
-        return ['ok' => false, 'message' => 'The bill was not deleted.'];
-    }
-    $saved = shaven_exec(
-        $conn,
-        "DELETE FROM tbl_payments WHERE id=? AND payment_uid=?",
-        'ii',
-        [$billId, $subscriberId]
-    );
-    if (!$saved['ok'] || (int)$saved['affected'] !== 1) {
-        mysqli_rollback($conn);
-        return ['ok' => false, 'message' => 'The bill was not deleted.'];
+        return $result;
     }
     mysqli_commit($conn);
-    return ['ok' => true, 'message' => 'The bill was deleted.'];
+    return $result;
+}
+
+function shaven_owner_delete_bills($conn, $subscriberId, $rawIds) {
+    if (!shaven_owner_can_adjust_bills()) {
+        return ['ok' => false, 'message' => 'An admin or the owner can delete bills.', 'deleted' => 0];
+    }
+    $subscriberId = (int)$subscriberId;
+    if ($subscriberId < 1) {
+        return ['ok' => false, 'message' => 'That subscriber was not found.', 'deleted' => 0];
+    }
+    $ids = [];
+    foreach ((array)$rawIds as $value) {
+        $id = (int)$value;
+        if ($id > 0) {
+            $ids[$id] = $id;
+        }
+    }
+    $ids = array_values($ids);
+    if (!$ids) {
+        return ['ok' => false, 'message' => 'Select at least one bill to delete.', 'deleted' => 0];
+    }
+    if (count($ids) > 200) {
+        return ['ok' => false, 'message' => 'Delete up to 200 bills at a time.', 'deleted' => 0];
+    }
+    mysqli_begin_transaction($conn);
+    $deleted = 0;
+    foreach ($ids as $billId) {
+        $result = shaven_owner_delete_bill_locked($conn, $subscriberId, $billId);
+        if (!$result['ok']) {
+            mysqli_rollback($conn);
+            return [
+                'ok' => false,
+                'message' => $result['message'] . ($deleted > 0 ? ' Nothing from this selection was deleted.' : ''),
+                'deleted' => 0,
+            ];
+        }
+        $deleted++;
+    }
+    mysqli_commit($conn);
+    return [
+        'ok' => true,
+        'message' => $deleted === 1 ? '1 bill was deleted.' : $deleted . ' bills were deleted.',
+        'deleted' => $deleted,
+    ];
 }

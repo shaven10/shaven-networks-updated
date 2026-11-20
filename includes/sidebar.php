@@ -97,6 +97,9 @@ $photoUrl = shaven_account_photo_url($_SESSION['photo'] ?? '');
             ['pages/tables/collections_records.php', 'Collection Records', 'fas fa-table'],
           ]);
           shaven_nav_item('pages/admin/users.php', 'fas fa-users-cog', 'Accounts');
+          if ($role === 1 || $role === 2) {
+            shaven_nav_item('pages/admin/db_tools.php', 'fas fa-database', 'Database Tools');
+          }
         ?>
       <?php endif; ?>
       <?php

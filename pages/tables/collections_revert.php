@@ -19,6 +19,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $result = shaven_revert_request($conn, $userId, $paymentId);
     } elseif ($action === 'cancel') {
         $result = shaven_revert_cancel($conn, $userId, $paymentId);
+    } elseif ($action === 'request_batch') {
+        $result = shaven_revert_request_many($conn, $userId, $_POST['payment_ids'] ?? []);
+    } elseif ($action === 'cancel_batch') {
+        $result = shaven_revert_cancel_many($conn, $userId, $_POST['payment_ids'] ?? []);
     } else {
         $result = ['ok' => false, 'error' => 'That revert action is not available.'];
     }
@@ -42,13 +46,29 @@ shaven_page_open('Revert Payment', 'Revert Payment');
   </div>
 </div>
 <script>
-document.getElementById('revert-find').addEventListener('input', function () {
-  var query = this.value.trim().toLowerCase();
-  document.querySelectorAll('[data-revert-row]').forEach(function (row) {
-    var show = query === '' || (row.getAttribute('data-find') || '').indexOf(query) !== -1;
-    row.classList.toggle('d-none', !show);
+(function () {
+  var find = document.getElementById('revert-find');
+  if (!find) return;
+  find.addEventListener('input', function () {
+    var query = this.value.trim().toLowerCase();
+    document.querySelectorAll('[data-revert-row]').forEach(function (row) {
+      var show = query === '' || (row.getAttribute('data-find') || '').indexOf(query) !== -1;
+      row.classList.toggle('d-none', !show);
+      if (!show) {
+        var box = row.querySelector('.revert-batch-check');
+        if (box) box.checked = false;
+      }
+    });
+    var all = document.getElementById('revert-batch-all');
+    var countNode = document.getElementById('revert-batch-count');
+    var boxes = Array.prototype.slice.call(document.querySelectorAll('[data-revert-row]:not(.d-none) .revert-batch-check'));
+    if (countNode) countNode.textContent = document.querySelectorAll('.revert-batch-check:checked').length + ' selected';
+    if (all) {
+      all.checked = boxes.length > 0 && boxes.every(function (box) { return box.checked; });
+      all.indeterminate = !all.checked && boxes.some(function (box) { return box.checked; });
+    }
   });
-});
+})();
 </script>
 <?php
 shaven_page_close();

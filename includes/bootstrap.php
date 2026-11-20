@@ -447,6 +447,7 @@ function shaven_migrate($conn) {
            AND period_end > '1970-01-01'
            AND (due_date IS NULL OR due_date <> DATE_ADD(period_end, INTERVAL 1 DAY))"
     );
+    shaven_migrate_billing_month_from_due($conn);
     mysqli_query($conn, "CREATE TABLE IF NOT EXISTS tbl_plan_changes (
         id INT NOT NULL AUTO_INCREMENT,
         subscriber_id INT NOT NULL,
@@ -458,12 +459,27 @@ function shaven_migrate($conn) {
         PRIMARY KEY (id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+    mysqli_query($conn, "CREATE TABLE IF NOT EXISTS tbl_admin_level (
+        id INT NOT NULL AUTO_INCREMENT,
+        admin_lvl VARCHAR(255) NULL DEFAULT NULL,
+        PRIMARY KEY (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     mysqli_query($conn, "INSERT INTO tbl_admin_level (id, admin_lvl) VALUES
         (1, 'Owner'),
         (2, 'Admin'),
         (3, 'Technician'),
         (4, 'Subscriber')
         ON DUPLICATE KEY UPDATE admin_lvl = VALUES(admin_lvl)");
+
+    mysqli_query($conn, "CREATE TABLE IF NOT EXISTS tbl_finances (
+        id INT NOT NULL AUTO_INCREMENT,
+        dateoftransaction DATETIME NULL DEFAULT NULL,
+        description VARCHAR(255) NULL DEFAULT NULL,
+        debit DOUBLE NOT NULL DEFAULT 0,
+        credit DOUBLE NOT NULL DEFAULT 0,
+        PRIMARY KEY (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
     $profile = shaven_rows($conn, "SELECT id, s_name FROM tbl_subs_profile WHERE id=? LIMIT 1", 'i', [27]);
     if ($profile) {
@@ -689,6 +705,86 @@ function shaven_month_number($name) {
     return $map[strtolower(trim((string)$name))] ?? 0;
 }
 
+function shaven_migrate_billing_month_from_due($conn) {
+    $needs = shaven_rows(
+        $conn,
+        "SELECT id FROM tbl_payments
+         WHERE (
+                (due_date IS NOT NULL AND due_date > '1970-01-01')
+             OR (period_end IS NOT NULL AND period_end > '1970-01-01')
+         )
+           AND (
+                due_date IS NULL
+             OR payment_year <> YEAR(due_date)
+             OR payment_day <> DAY(due_date)
+             OR LOWER(TRIM(payment_month)) <> LOWER(MONTHNAME(due_date))
+           )
+         LIMIT 1"
+    );
+    if (!$needs) {
+        return;
+    }
+    $rows = shaven_rows(
+        $conn,
+        "SELECT id, payment_uid, payment_year, payment_month, payment_day, due_date, period_end
+         FROM tbl_payments
+         WHERE (due_date IS NOT NULL AND due_date > '1970-01-01')
+            OR (period_end IS NOT NULL AND period_end > '1970-01-01')"
+    );
+    if (!$rows) {
+        return;
+    }
+    $occupied = [];
+    foreach ($rows as $row) {
+        $uid = (int)$row['payment_uid'];
+        $month = strtolower(trim((string)$row['payment_month']));
+        $year = (int)$row['payment_year'];
+        if ($month === '' || $year < 1) {
+            continue;
+        }
+        $occupied[$uid][$year . '|' . $month] = (int)$row['id'];
+    }
+    foreach ($rows as $row) {
+        $due = substr((string)($row['due_date'] ?? ''), 0, 10);
+        if ($due === '' || strpos($due, '0000-00-00') === 0) {
+            $due = shaven_due_after_period($row['period_end'] ?? '');
+        }
+        $dueDate = DateTimeImmutable::createFromFormat('!Y-m-d', $due);
+        if (!$dueDate) {
+            continue;
+        }
+        $newYear = (int)$dueDate->format('Y');
+        $newMonth = shaven_month_name((int)$dueDate->format('n'));
+        $newDay = (int)$dueDate->format('j');
+        $oldYear = (int)$row['payment_year'];
+        $oldMonth = trim((string)$row['payment_month']);
+        $oldDay = (int)$row['payment_day'];
+        if ($oldYear === $newYear && strcasecmp($oldMonth, $newMonth) === 0 && $oldDay === $newDay) {
+            continue;
+        }
+        $uid = (int)$row['payment_uid'];
+        $id = (int)$row['id'];
+        $newKey = $newYear . '|' . strtolower($newMonth);
+        if (isset($occupied[$uid][$newKey]) && $occupied[$uid][$newKey] !== $id) {
+            continue;
+        }
+        $saved = shaven_exec(
+            $conn,
+            "UPDATE tbl_payments SET payment_year=?, payment_month=?, payment_day=? WHERE id=?",
+            'isii',
+            [$newYear, $newMonth, $newDay, $id]
+        );
+        if (!$saved['ok']) {
+            continue;
+        }
+        $oldKey = $oldYear . '|' . strtolower($oldMonth);
+        if (isset($occupied[$uid][$oldKey]) && $occupied[$uid][$oldKey] === $id) {
+            unset($occupied[$uid][$oldKey]);
+        }
+        $occupied[$uid][$newKey] = $id;
+    }
+}
+
 function shaven_due_after_period($periodEnd) {
     if ($periodEnd instanceof DateTimeImmutable) {
         return $periodEnd->modify('+1 day')->format('Y-m-d');
@@ -705,11 +801,15 @@ function shaven_due_after_period($periodEnd) {
 function shaven_bill_period(array $bill, $installedOn) {
     $storedStart = substr((string)($bill['period_start'] ?? ''), 0, 10);
     $storedEnd = substr((string)($bill['period_end'] ?? ''), 0, 10);
+    $storedDue = substr((string)($bill['due_date'] ?? ''), 0, 10);
     if ($storedStart !== '' && $storedEnd !== '' && strpos($storedStart, '0000-00-00') !== 0 && strpos($storedEnd, '0000-00-00') !== 0) {
+        $due = ($storedDue !== '' && strpos($storedDue, '0000-00-00') !== 0)
+            ? $storedDue
+            : shaven_due_after_period($storedEnd);
         return [
             'start' => $storedStart,
             'end' => $storedEnd,
-            'due' => shaven_due_after_period($storedEnd),
+            'due' => $due,
         ];
     }
     $installed = shaven_install_date($installedOn);
@@ -721,13 +821,18 @@ function shaven_bill_period(array $bill, $installedOn) {
     $target = ($year * 100) + $month;
     for ($offset = 0; $offset < 600; $offset++) {
         $start = shaven_billing_anchor($installed, $offset);
-        $ym = ((int)$start->format('Y') * 100) + (int)$start->format('n');
+        $end = shaven_billing_anchor($installed, $offset + 1)->modify('-1 day');
+        $due = shaven_due_after_period($end);
+        $dueDate = DateTimeImmutable::createFromFormat('!Y-m-d', $due);
+        if (!$dueDate) {
+            continue;
+        }
+        $ym = ((int)$dueDate->format('Y') * 100) + (int)$dueDate->format('n');
         if ($ym === $target) {
-            $end = shaven_billing_anchor($installed, $offset + 1)->modify('-1 day');
             return [
                 'start' => $start->format('Y-m-d'),
                 'end' => $end->format('Y-m-d'),
-                'due' => shaven_due_after_period($end),
+                'due' => $due,
             ];
         }
         if ($ym > $target) {
@@ -770,12 +875,40 @@ function shaven_due_cell(array $bill, $installedOn = null) {
     return '<td data-order="' . h($period['due']) . '"><span class="shaven-due-date">' . h(shaven_date($period['due'], 'F j, Y')) . '</span></td>';
 }
 
+function shaven_billing_month_label(array $bill) {
+    $month = trim((string)($bill['payment_month'] ?? $bill['month'] ?? ''));
+    $year = (int)($bill['payment_year'] ?? $bill['year'] ?? 0);
+    if ($month !== '' && $year > 0) {
+        return $month . ' ' . $year;
+    }
+    if ($month !== '') {
+        return $month;
+    }
+    if ($year > 0) {
+        return (string)$year;
+    }
+    return '—';
+}
+
+function shaven_billing_month_order(array $bill) {
+    $month = trim((string)($bill['payment_month'] ?? $bill['month'] ?? ''));
+    $year = (int)($bill['payment_year'] ?? $bill['year'] ?? 0);
+    $number = shaven_month_number($month);
+    if ($year > 0 && $number > 0) {
+        return sprintf('%04d-%02d', $year, $number);
+    }
+    return '9999-99';
+}
+
+function shaven_billing_month_cell(array $bill) {
+    return '<td data-order="' . h(shaven_billing_month_order($bill)) . '">' . h(shaven_billing_month_label($bill)) . '</td>';
+}
+
 function shaven_bill_period_label(array $bill, $installedOn) {
     $period = shaven_bill_period($bill, $installedOn);
     if (!$period) {
-        $month = trim((string)($bill['payment_month'] ?? ''));
-        $year = (int)($bill['payment_year'] ?? 0);
-        return ($month !== '' && $year > 0) ? $month . ' ' . $year : 'Billing month not on file';
+        $label = shaven_billing_month_label($bill);
+        return $label !== '—' ? $label : 'Billing month not on file';
     }
     return shaven_date($period['start'], 'F j, Y') . ' through ' . shaven_date($period['end'], 'F j, Y');
 }
@@ -824,7 +957,11 @@ function shaven_installation_periods($installedOn, $fromYm, $toYm, DateTimeImmut
         $next = shaven_billing_anchor($installed, $offset + 1);
         $end = $next->modify('-1 day');
         $due = shaven_due_after_period($end);
-        $ym = ((int)$start->format('Y') * 100) + (int)$start->format('n');
+        $dueDate = DateTimeImmutable::createFromFormat('!Y-m-d', $due);
+        if (!$dueDate) {
+            continue;
+        }
+        $ym = ((int)$dueDate->format('Y') * 100) + (int)$dueDate->format('n');
         if ($fromYm !== null && ($ym < (int)$fromYm || $ym > (int)$toYm)) {
             continue;
         }
@@ -832,9 +969,9 @@ function shaven_installation_periods($installedOn, $fromYm, $toYm, DateTimeImmut
             'start' => $start->format('Y-m-d'),
             'end' => $end->format('Y-m-d'),
             'due' => $due,
-            'year' => (int)$start->format('Y'),
-            'month' => shaven_month_name((int)$start->format('n')),
-            'day' => (int)$start->format('j'),
+            'year' => (int)$dueDate->format('Y'),
+            'month' => shaven_month_name((int)$dueDate->format('n')),
+            'day' => (int)$dueDate->format('j'),
         ];
     }
     return $periods;
@@ -846,7 +983,7 @@ function shaven_billing_range($fromYear, $fromMonth, $toYear, $toMonth) {
     $fromMonth = (int)$fromMonth;
     $toMonth = (int)$toMonth;
     if ($fromYear === 0 && $toYear === 0) {
-        return ['ok' => true, 'from' => null, 'to' => null, 'label' => 'every missing period from installation through the current month'];
+        return ['ok' => true, 'from' => null, 'to' => null, 'label' => 'every missing billing month from installation through the current month'];
     }
     if ($fromYear === 0 || $toYear === 0) {
         return ['ok' => false, 'error' => 'Enter both the starting year and the ending year, or leave both years empty.'];
@@ -857,19 +994,37 @@ function shaven_billing_range($fromYear, $fromMonth, $toYear, $toMonth) {
     $from = ($fromYear * 100) + $fromMonth;
     $to = ($toYear * 100) + $toMonth;
     if ($from > $to) {
-        return ['ok' => false, 'error' => 'The starting period is later than the ending period.'];
+        return ['ok' => false, 'error' => 'The starting billing month is later than the ending billing month.'];
     }
     $label = shaven_month_name($fromMonth) . ' ' . $fromYear . ' through ' . shaven_month_name($toMonth) . ' ' . $toYear;
     return ['ok' => true, 'from' => $from, 'to' => $to, 'label' => $label];
 }
 
-function shaven_billing_plan($conn, $fromYear, $fromMonth, $toYear, $toMonth, $subscriberId = 0) {
+function shaven_billing_half_label($half) {
+    $half = (int)$half;
+    if ($half === 1) {
+        return '1st half (due on days 1–15)';
+    }
+    if ($half === 2) {
+        return '2nd half (due on days 16–31)';
+    }
+    return 'whole month';
+}
+
+function shaven_billing_plan($conn, $fromYear, $fromMonth, $toYear, $toMonth, $subscriberId = 0, $half = 0) {
     if (!shaven_role_is(1, 2)) {
         return ['ok' => false, 'error' => 'Bills are generated by an admin or the owner.'];
     }
     $range = shaven_billing_range($fromYear, $fromMonth, $toYear, $toMonth);
     if (!$range['ok']) {
         return $range;
+    }
+    $half = (int)$half;
+    if ($half !== 1 && $half !== 2) {
+        $half = 0;
+    }
+    if ($half > 0) {
+        $range['label'] .= ', ' . shaven_billing_half_label($half);
     }
     $subscriberId = (int)$subscriberId;
     $where = 's.status=1';
@@ -918,6 +1073,9 @@ function shaven_billing_plan($conn, $fromYear, $fromMonth, $toYear, $toMonth, $s
             continue;
         }
         foreach (shaven_installation_periods($installed, $range['from'], $range['to']) as $period) {
+            if (($half === 1 && (int)$period['day'] > 15) || ($half === 2 && (int)$period['day'] < 16)) {
+                continue;
+            }
             $key = (int)$subscriber['id'] . '|' . $period['year'] . '|' . strtolower($period['month']);
             if (isset($existing[$key])) {
                 $skipped++;
@@ -953,8 +1111,8 @@ function shaven_billing_plan($conn, $fromYear, $fromMonth, $toYear, $toMonth, $s
     ];
 }
 
-function shaven_billing_generate($conn, $fromYear, $fromMonth, $toYear, $toMonth, $subscriberId = 0) {
-    $plan = shaven_billing_plan($conn, $fromYear, $fromMonth, $toYear, $toMonth, $subscriberId);
+function shaven_billing_generate($conn, $fromYear, $fromMonth, $toYear, $toMonth, $subscriberId = 0, $half = 0) {
+    $plan = shaven_billing_plan($conn, $fromYear, $fromMonth, $toYear, $toMonth, $subscriberId, $half);
     if (!$plan['ok']) {
         return $plan;
     }
@@ -990,47 +1148,6 @@ function shaven_billing_generate($conn, $fromYear, $fromMonth, $toYear, $toMonth
     return ['ok' => true, 'error' => '', 'created' => $created, 'skipped' => (int)$plan['skipped'], 'subscriber' => $subscriberName];
 }
 
-function shaven_ensure_current_bill($conn, array $sub) {
-    if ((int)($sub['status'] ?? 0) !== 1) {
-        return;
-    }
-    if (empty($sub['s_doi']) || !isset($sub['p_monthly_amount'])) {
-        return;
-    }
-    $installed = shaven_install_date($sub['s_doi']);
-    $today = new DateTimeImmutable('today');
-    if (!$installed || $installed > $today) {
-        return;
-    }
-    if ((int)$installed->diff($today)->days <= 30) {
-        return;
-    }
-    $ym = ((int)$today->format('Y') * 100) + (int)$today->format('n');
-    $periods = shaven_installation_periods($installed, $ym, $ym, $today);
-    if (!$periods) {
-        return;
-    }
-    $period = $periods[0];
-    $uid = (int)$sub['id'];
-    $existing = shaven_rows(
-        $conn,
-        "SELECT id FROM tbl_payments WHERE payment_year=? AND payment_month=? AND payment_uid=? LIMIT 1",
-        'isi',
-        [$period['year'], $period['month'], $uid]
-    );
-    if ($existing) {
-        return;
-    }
-    shaven_exec(
-        $conn,
-        "INSERT INTO tbl_payments
-            (payment_year, payment_amount, payment_day, payment_month, payment_uid, p_timestamp, rf, pay_channel, period_start, period_end, due_date)
-         VALUES (?, ?, ?, ?, ?, NOW(), '', 'bill', ?, ?, ?)",
-        'idisisss',
-        [$period['year'], (float)$sub['p_monthly_amount'], $period['day'], $period['month'], $uid, $period['start'], $period['end'], $period['due']]
-    );
-}
-
 function shaven_subscriber_account($conn, $subscriberId) {
     $subscriberId = (int)$subscriberId;
     if ($subscriberId <= 0) {
@@ -1051,7 +1168,6 @@ function shaven_subscriber_account($conn, $subscriberId) {
         return null;
     }
     $profile = $rows[0];
-    shaven_ensure_current_bill($conn, $profile);
     $year = (int)date('Y');
     $totals = shaven_rows(
         $conn,
@@ -1320,13 +1436,25 @@ function shaven_period_at_offset(DateTimeImmutable $installed, $offset) {
     $offset = (int)$offset;
     $start = shaven_billing_anchor($installed, $offset);
     $end = shaven_billing_anchor($installed, $offset + 1)->modify('-1 day');
+    $due = shaven_due_after_period($end);
+    $dueDate = DateTimeImmutable::createFromFormat('!Y-m-d', $due);
+    if (!$dueDate) {
+        return [
+            'start' => $start->format('Y-m-d'),
+            'end' => $end->format('Y-m-d'),
+            'due' => $due,
+            'year' => 0,
+            'month' => '',
+            'day' => 0,
+        ];
+    }
     return [
         'start' => $start->format('Y-m-d'),
         'end' => $end->format('Y-m-d'),
-        'due' => shaven_due_after_period($end),
-        'year' => (int)$start->format('Y'),
-        'month' => shaven_month_name((int)$start->format('n')),
-        'day' => (int)$start->format('j'),
+        'due' => $due,
+        'year' => (int)$dueDate->format('Y'),
+        'month' => shaven_month_name((int)$dueDate->format('n')),
+        'day' => (int)$dueDate->format('j'),
     ];
 }
 
@@ -1348,8 +1476,10 @@ function shaven_advance_periods(DateTimeImmutable $installed, array $bills, $cou
         if (!$period || empty($period['start'])) {
             continue;
         }
-        $startMonth = (int)substr($period['start'], 5, 2);
-        $keys[(int)substr($period['start'], 0, 4) . '|' . strtolower(shaven_month_name($startMonth))] = true;
+        if (!empty($period['due'])) {
+            $dueMonth = (int)substr($period['due'], 5, 2);
+            $keys[(int)substr($period['due'], 0, 4) . '|' . strtolower(shaven_month_name($dueMonth))] = true;
+        }
         $offset = shaven_anchor_offset($installed, $period['start']);
         if ($offset !== null && ($latestOffset === null || $offset > $latestOffset)) {
             $latestOffset = $offset;
@@ -2058,3 +2188,4 @@ require_once __DIR__ . '/owner_batch.php';
 require_once __DIR__ . '/bill_adjust.php';
 require_once __DIR__ . '/collection_records.php';
 require_once __DIR__ . '/notifications.php';
+require_once __DIR__ . '/db_tools.php';

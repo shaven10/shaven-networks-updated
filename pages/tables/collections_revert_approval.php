@@ -19,6 +19,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $result = shaven_revert_approve($conn, $userId, $paymentId);
     } elseif ($action === 'close') {
         $result = shaven_revert_close($conn, $userId, $paymentId);
+    } elseif ($action === 'approve_batch') {
+        $result = shaven_revert_approve_many($conn, $userId, $_POST['payment_ids'] ?? []);
+    } elseif ($action === 'close_batch') {
+        $result = shaven_revert_close_many($conn, $userId, $_POST['payment_ids'] ?? []);
     } else {
         $result = ['ok' => false, 'error' => 'That approval action is not available.'];
     }

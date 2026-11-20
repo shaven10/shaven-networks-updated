@@ -225,13 +225,14 @@
       }
     });
     var locked = $table.attr('data-install-order');
+    var groupOff = String($table.attr('data-shaven-group') || '').toLowerCase() === 'off';
     if (locked !== undefined && locked !== '') {
       var column = parseInt(locked, 10);
       if (!isNaN(column)) {
         opts.order = [[column, 'asc']];
         opts.orderFixed = { pre: [[column, 'asc']] };
       }
-    } else if (nameIndex >= 0 && dueIndex >= 0 && $.fn.dataTable.RowGroup) {
+    } else if (!groupOff && nameIndex >= 0 && dueIndex >= 0 && $.fn.dataTable.RowGroup) {
       var dueDir = String($table.attr('data-due-order') || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc';
       opts.order = [[nameIndex, 'asc'], [dueIndex, dueDir]];
       opts.orderFixed = { pre: [[nameIndex, 'asc']] };

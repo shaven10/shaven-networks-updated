@@ -167,6 +167,13 @@ function shaven_dashboard_bundle($conn) {
         'remit_held' => shaven_remit_held($conn, (int)($_SESSION['usr_id'] ?? 0), 1),
         'remit_waiting' => shaven_remit_waiting($conn, (int)($_SESSION['usr_id'] ?? 0)),
         'remit_confirm' => shaven_remit_confirm_totals($conn, (int)($_SESSION['usr_id'] ?? 0)),
+        'tech_confirmed' => (int)((shaven_rows(
+            $conn,
+            "SELECT COUNT(*) c
+             FROM tbl_remit_batches b
+             INNER JOIN tbl_sys_users u ON u.id = b.collector_id
+             WHERE b.status='confirmed' AND u.sys_level=3"
+        )[0]['c'] ?? 0)),
         'recent' => $recent,
         'unpaid_list' => $unpaidList,
         'inactive_list' => $inactive,
@@ -254,6 +261,10 @@ function shaven_render_staff_dashboard($conn) {
                   <a href="<?php echo h(shaven_url('pages/tables/remittances.php')); ?>">Batches waiting for confirmation</a>
                   <strong><?php echo (int)$data['remit_confirm']['batches']; ?> · <?php echo shaven_peso($data['remit_confirm']['amount']); ?></strong>
                 </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  <a href="<?php echo h(shaven_url('pages/tables/remittances.php#tech-confirmed')); ?>">Approved technician remittances</a>
+                  <strong><?php echo (int)($data['tech_confirmed'] ?? 0); ?></strong>
+                </li>
               <?php endif; ?>
               <?php if (shaven_role_is(1, 2)): ?>
                 <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -282,9 +293,7 @@ function shaven_render_staff_dashboard($conn) {
             <table class="table table-striped mb-0">
               <thead><tr><th>Date</th><th>Subscriber</th><th>Period</th><th>Due date</th><th>Amount</th><th>Channel</th></tr></thead>
               <tbody>
-              <?php foreach (shaven_rows_by_subscriber($data['recent'], 'desc') as $subscriberName => $subscriberRows): ?>
-                <?php echo shaven_subscriber_group_row($subscriberName, $subscriberRows, 6); ?>
-                <?php foreach ($subscriberRows as $row): ?>
+              <?php foreach ($data['recent'] as $row): ?>
                 <?php $recentDue = shaven_due_text($row, $row['s_doi']); ?>
                 <tr>
                   <td><?php echo h(shaven_date($row['payment_date'], 'M j, g:i A')); ?></td>
@@ -294,7 +303,6 @@ function shaven_render_staff_dashboard($conn) {
                   <td><?php echo shaven_peso($row['payment_amount']); ?></td>
                   <td><?php echo h(shaven_channel_label(1, $row['pay_channel'])); ?></td>
                 </tr>
-                <?php endforeach; ?>
               <?php endforeach; ?>
               </tbody>
             </table>
@@ -308,9 +316,7 @@ function shaven_render_staff_dashboard($conn) {
             <table class="table table-striped mb-0">
               <thead><tr><th>Subscriber</th><th>Plan</th><th>Due date</th><th class="text-right">Amount</th></tr></thead>
               <tbody>
-              <?php foreach (shaven_rows_by_subscriber($data['unpaid_list']) as $subscriberName => $subscriberRows): ?>
-                <?php echo shaven_subscriber_group_row($subscriberName, $subscriberRows, 4); ?>
-                <?php foreach ($subscriberRows as $row): ?>
+              <?php foreach ($data['unpaid_list'] as $row): ?>
                 <?php $openDue = shaven_due_text($row, $row['s_doi']); ?>
                 <tr>
                   <td><a href="<?php echo h($subscriberUrl . (int)$row['id']); ?>"><?php echo h($row['s_name']); ?></a></td>
@@ -318,7 +324,6 @@ function shaven_render_staff_dashboard($conn) {
                   <td><?php echo $openDue !== '' ? '<span class="shaven-due-date">' . h($openDue) . '</span>' : '—'; ?></td>
                   <td class="text-right"><?php echo shaven_peso($row['payment_amount']); ?></td>
                 </tr>
-                <?php endforeach; ?>
               <?php endforeach; ?>
               </tbody>
             </table>
@@ -355,9 +360,7 @@ function shaven_render_tech_dashboard($conn) {
             <table class="table table-striped mb-0">
               <thead><tr><th>Subscriber</th><th>Address</th><th>Plan</th><th>Due date</th><th>Bill</th></tr></thead>
               <tbody>
-              <?php foreach (shaven_rows_by_subscriber($data['unpaid_list']) as $subscriberName => $subscriberRows): ?>
-                <?php echo shaven_subscriber_group_row($subscriberName, $subscriberRows, 5); ?>
-                <?php foreach ($subscriberRows as $row): ?>
+              <?php foreach ($data['unpaid_list'] as $row): ?>
                 <?php $techDue = shaven_due_text($row, $row['s_doi']); ?>
                 <tr>
                   <td><a href="<?php echo h($subscriberUrl . (int)$row['id']); ?>"><?php echo h($row['s_name']); ?></a></td>
@@ -366,7 +369,6 @@ function shaven_render_tech_dashboard($conn) {
                   <td><?php echo $techDue !== '' ? '<span class="shaven-due-date">' . h($techDue) . '</span>' : '—'; ?></td>
                   <td><?php echo shaven_peso($row['payment_amount']); ?></td>
                 </tr>
-                <?php endforeach; ?>
               <?php endforeach; ?>
               </tbody>
             </table>
@@ -410,43 +412,6 @@ function shaven_render_tech_dashboard($conn) {
     </div>
     <?php
     shaven_chart_json($data['charts']);
-}
-
-function shaven_rows_by_subscriber(array $rows, $dueDirection = 'asc') {
-    $groups = [];
-    foreach ($rows as $row) {
-        $name = trim((string)($row['s_name'] ?? ''));
-        if ($name === '') {
-            $name = 'Unnamed subscriber';
-        }
-        if (!isset($groups[$name])) {
-            $groups[$name] = [];
-        }
-        $groups[$name][] = $row;
-    }
-    uksort($groups, 'strnatcasecmp');
-    $direction = strtolower((string)$dueDirection) === 'desc' ? -1 : 1;
-    foreach ($groups as &$items) {
-        usort($items, function ($left, $right) use ($direction) {
-            return $direction * strcmp(
-                shaven_due_sort_value($left, $left['s_doi'] ?? ''),
-                shaven_due_sort_value($right, $right['s_doi'] ?? '')
-            );
-        });
-    }
-    unset($items);
-    return $groups;
-}
-
-function shaven_subscriber_group_row($name, array $rows, $colspan) {
-    $total = 0.0;
-    foreach ($rows as $row) {
-        $total += (float)($row['payment_amount'] ?? 0);
-    }
-    $count = count($rows);
-    $label = $count === 1 ? 'record' : 'records';
-    return '<tr class="shaven-bill-group"><td colspan="' . (int)$colspan . '"><div class="shaven-bill-group"><span class="shaven-group-name">'
-        . h($name) . '</span><span class="shaven-group-meta">' . $count . ' ' . $label . ' · ' . shaven_peso($total) . '</span></div></td></tr>';
 }
 
 function shaven_render_subscriber_dashboard($conn) {

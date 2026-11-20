@@ -64,6 +64,7 @@ shaven_page_open('Collection records', 'Collection records');
         <tr>
           <th>Subscriber</th>
           <th>Plan</th>
+          <th>Billing month</th>
           <th>Billing period</th>
           <th>Due date</th>
           <th>Amount</th>
@@ -78,6 +79,7 @@ shaven_page_open('Collection records', 'Collection records');
         <tr>
           <td><?php echo h($row['s_name']); ?></td>
           <td><?php echo h(($row['p_name'] ?: 'No plan') . ' · ' . shaven_speed_label($row['p_speed_kb'] ?? 0)); ?></td>
+          <?php echo shaven_billing_month_cell($row); ?>
           <td class="shaven-period" data-order="<?php echo h(($periodMeta && !empty($periodMeta['start'])) ? $periodMeta['start'] : '9999-12-31'); ?>"><?php echo h(shaven_bill_period_label($row, $row['s_doi'] ?? '')); ?></td>
           <?php echo shaven_due_cell($row, $row['s_doi'] ?? ''); ?>
           <td><?php echo shaven_peso($row['payment_amount']); ?></td>

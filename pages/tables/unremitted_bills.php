@@ -69,6 +69,7 @@ shaven_page_open('Unremitted bills', 'Unremitted bills');
           <tr>
             <th style="width:7.5rem;"><label class="mb-0"><input type="checkbox" id="bill-mark-all"> Mark all</label></th>
             <th>Subscriber</th>
+            <th>Billing month</th>
             <th>Billing period</th>
             <th>Due date</th>
             <th>Posted</th>
@@ -92,6 +93,7 @@ shaven_page_open('Unremitted bills', 'Unremitted bills');
                 <div class="text-muted small"><?php echo h($row['account_no']); ?></div>
               <?php endif; ?>
             </td>
+            <td><?php echo h(shaven_billing_month_label($row)); ?></td>
             <td><?php echo h(shaven_bill_period_label($row, $row['s_doi'])); ?></td>
             <td><?php echo $due !== '' ? '<span class="shaven-due-date">' . h($due) . '</span>' : '—'; ?></td>
             <td><?php echo !empty($row['payment_date']) ? h(shaven_date($row['payment_date'], 'M j, Y g:i A')) : '—'; ?></td>

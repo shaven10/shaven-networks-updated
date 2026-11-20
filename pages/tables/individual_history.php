@@ -105,6 +105,7 @@ $sessionID=$_SESSION['usr_id'];
                   <th>Subscriber</th>
                     <th>Amount</th>
                        <th>Paid on</th>
+                    <th>Billing month</th>
                     <th>Billing period</th>
                     <th>Due date</th>
                     <th>Posted by</th>
@@ -154,6 +155,7 @@ $sessionID=$_SESSION['usr_id'];
                           ? shaven_date($row['payment_date'], 'F j, Y g:i A')
                           : 'Not paid';
                         $generated = !empty($row['p_timestamp']) ? shaven_date($row['p_timestamp'], 'F j, Y g:i A') : '—';
+                        $month = shaven_billing_month_label($row);
                         $period = shaven_bill_period_label($row, $row['s_doi']);
                         $posted = $row['sys_user_fullname'] ?: '—';
                       echo "<tr>
@@ -161,6 +163,7 @@ $sessionID=$_SESSION['usr_id'];
                         <td>".h($row['s_name'])."</td>
                         <td>".shaven_peso($row['payment_amount'])."</td>
                        <td>".h($paidOn)."</td>
+                       ".shaven_billing_month_cell($row)."
                        <td>".h($period)."</td>
                         ".shaven_due_cell($row)."
                         <td>".h($posted)."</td>";
@@ -196,6 +199,7 @@ $sessionID=$_SESSION['usr_id'];
                     <th>Subscriber</th>
                     <th>Amount</th>
                       <th>Paid on</th>
+                    <th>Billing month</th>
                     <th>Billing period</th>
                     <th>Due date</th>
                     <th>Posted by</th>

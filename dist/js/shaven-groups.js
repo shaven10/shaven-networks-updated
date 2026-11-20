@@ -66,6 +66,9 @@
 
   window.shavenRefreshGroups = function (table) {
     var $table = $(table);
+    if ($table.attr('data-shaven-group-mode') === 'all' && $table.data('shavenGroupMode') == null) {
+      $table.data('shavenGroupMode', 'all');
+    }
     ensureToolbar($table);
     $table.find('tbody').children('tr').each(function () {
       var $row = $(this);

@@ -55,6 +55,7 @@ shaven_page_open('Tinglunon', 'Tinglunon');
             <th>Subscriber</th>
             <th>Status</th>
             <th>Payment status</th>
+            <th>Billing month</th>
             <th>Billing period</th>
             <th>Due date</th>
             <th class="tinglunon-money">Amount</th>
@@ -92,27 +93,31 @@ shaven_page_open('Tinglunon', 'Tinglunon');
             <td class="tinglunon-status"><?php echo shaven_tinglunon_payment_badge($paymentLabel); ?></td>
             <td></td>
             <td></td>
+            <td></td>
             <td class="tinglunon-money"><strong><?php echo shaven_peso($group['total']); ?></strong></td>
           </tr>
           <?php foreach ($group['bills'] as $bill): ?>
             <?php
               $billAmount = html_entity_decode(shaven_peso($bill['amount']), ENT_QUOTES, 'UTF-8');
               $billPayment = (string)($bill['payment_status'] ?? 'Unpaid');
+              $billMonth = (string)($bill['month'] ?? '');
             ?>
             <tr class="tinglunon-line shaven-group-member-hidden"
                 data-kind="bill"
                 data-subscriber="<?php echo (int)$group['id']; ?>"
+                data-month="<?php echo h($billMonth); ?>"
                 data-period="<?php echo h($bill['period']); ?>"
                 data-due="<?php echo h($bill['due_label']); ?>"
                 data-status="<?php echo h($statusLabel); ?>"
                 data-payment="<?php echo h($billPayment); ?>"
                 data-amount="<?php echo h(number_format((float)$bill['amount'], 2, '.', '')); ?>"
                 data-amount-label="<?php echo h($billAmount); ?>"
-                data-find="<?php echo h(shaven_tinglunon_find([$group['name'], $group['account'], $statusLabel, $billPayment, $bill['period'], $bill['due_label']])); ?>">
+                data-find="<?php echo h(shaven_tinglunon_find([$group['name'], $group['account'], $statusLabel, $billPayment, $billMonth, $bill['period'], $bill['due_label']])); ?>">
               <td></td>
               <td></td>
               <td class="tinglunon-status"><?php echo shaven_status_badge($group['status']); ?></td>
               <td class="tinglunon-status"><?php echo shaven_tinglunon_payment_badge($billPayment); ?></td>
+              <td><?php echo h($billMonth); ?></td>
               <td><?php echo h($bill['period']); ?></td>
               <td><span class="shaven-due-date"><?php echo h($bill['due_label']); ?></span></td>
               <td class="tinglunon-money"><?php echo shaven_peso($bill['amount']); ?></td>
