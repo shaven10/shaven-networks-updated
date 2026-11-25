@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <link rel="stylesheet" href="plugins/fontawesome-free/css/all.min.css">
   <link rel="stylesheet" href="plugins/icheck-bootstrap/icheck-bootstrap.min.css">
   <link rel="stylesheet" href="dist/css/adminlte.min.css">
-  <link rel="stylesheet" href="dist/css/shaven-theme.css">
+  <?php shaven_theme_assets(); ?>
 </head>
 <body class="hold-transition login-page">
 <div class="login-box">

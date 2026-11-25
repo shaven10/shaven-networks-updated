@@ -69,6 +69,7 @@ $photoUrl = shaven_account_photo_url($_SESSION['photo'] ?? '');
             ['pages/tables/remittances.php', 'Remittances', 'fas fa-wallet'],
             ['pages/tables/collections_revert.php', 'Revert Payment', 'fas fa-undo'],
           ]);
+          shaven_nav_item('pages/tables/collector_ledger.php', 'fas fa-book', 'My Ledger');
         ?>
       <?php else: ?>
         <?php shaven_nav_item('index.php', 'fas fa-tachometer-alt', 'Dashboard'); ?>
@@ -97,8 +98,12 @@ $photoUrl = shaven_account_photo_url($_SESSION['photo'] ?? '');
             ['pages/tables/collections_records.php', 'Collection Records', 'fas fa-table'],
           ]);
           shaven_nav_item('pages/admin/users.php', 'fas fa-users-cog', 'Accounts');
+          if ($role === 1) {
+            shaven_nav_item('pages/tables/collector_ledger.php', 'fas fa-book', 'Collector Ledger');
+          }
           if ($role === 1 || $role === 2) {
             shaven_nav_item('pages/admin/db_tools.php', 'fas fa-database', 'Database Tools');
+            shaven_nav_item('pages/admin/theme.php', 'fas fa-palette', 'Theme Manager');
           }
         ?>
       <?php endif; ?>

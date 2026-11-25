@@ -7,6 +7,32 @@
     return;
   }
 
+  function themeColor(name, fallback) {
+    var probe = document.createElement('span');
+    probe.style.display = 'none';
+    probe.style.color = 'var(' + name + ', ' + fallback + ')';
+    document.body.appendChild(probe);
+    var value = getComputedStyle(probe).color || fallback;
+    probe.remove();
+    var pixel = document.createElement('canvas').getContext('2d');
+    pixel.fillStyle = fallback;
+    pixel.fillStyle = value;
+    pixel.fillRect(0, 0, 1, 1);
+    var d = pixel.getImageData(0, 0, 1, 1).data;
+    return 'rgb(' + d[0] + ',' + d[1] + ',' + d[2] + ')';
+  }
+
+  function palette() {
+    return {
+      navy: themeColor('--shaven-navy', '#0e2a3a'),
+      gold: themeColor('--shaven-gold', '#c4a15a'),
+      tint: themeColor('--shaven-tint', '#e7eef3'),
+      goldSoft: themeColor('--shaven-gold-soft', '#f7f1e4'),
+      ink: themeColor('--shaven-ink', '#1b2b34'),
+      line: themeColor('--shaven-line', '#d5e1e6')
+    };
+  }
+
   function peso(amount) {
     var sign = amount < 0 ? '-' : '';
     return sign + '₱' + Math.abs(amount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -166,6 +192,7 @@
   }
 
   function exportImages(type) {
+    var c = palette();
     var lines = linesForExport();
     if (!lines.length) {
       if (note) {
@@ -218,7 +245,7 @@
       ctx.scale(scale, scale);
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, width, height);
-      ctx.fillStyle = '#0e2a3a';
+      ctx.fillStyle = c.navy;
       ctx.fillRect(0, 0, width, banner);
       ctx.fillStyle = '#ffffff';
       ctx.font = '600 15px Segoe UI, Arial, sans-serif';
@@ -226,17 +253,17 @@
       ctx.font = '700 36px Segoe UI, Arial, sans-serif';
       ctx.fillText('Tinglunon', margin, 80);
       ctx.font = '16px Segoe UI, Arial, sans-serif';
-      ctx.fillStyle = '#d5e1e6';
+      ctx.fillStyle = 'rgba(255, 255, 255, .8)';
       ctx.fillText('Due on or before ' + asOf + ' · ' + stamp, margin, 110);
       ctx.fillText(who + ' · page ' + (index + 1) + ' of ' + pages.length, margin, 136);
-      ctx.fillStyle = '#c4a15a';
+      ctx.fillStyle = c.gold;
       ctx.font = '600 16px Segoe UI, Arial, sans-serif';
       var headline = subLabel + ' subscribers · ' + billLabel + ' bills · ' + totalLabel;
       ctx.fillText(headline, margin, 158);
       var y = banner;
-      ctx.fillStyle = '#e7eef3';
+      ctx.fillStyle = c.tint;
       ctx.fillRect(0, y, width, columns);
-      ctx.fillStyle = '#0e2a3a';
+      ctx.fillStyle = c.navy;
       ctx.font = '700 13px Segoe UI, Arial, sans-serif';
       ctx.fillText('SUBSCRIBER', margin, y + 23);
       ctx.fillText('PAYMENT STATUS', 480, y + 23);
@@ -247,9 +274,9 @@
       y += columns;
       pageLines.forEach(function (line) {
         if (line.kind === 'group') {
-          ctx.fillStyle = '#f7f1e4';
+          ctx.fillStyle = c.goldSoft;
           ctx.fillRect(0, y, width, groupH);
-          ctx.fillStyle = '#0e2a3a';
+          ctx.fillStyle = c.navy;
           ctx.font = '700 15px Segoe UI, Arial, sans-serif';
           ctx.fillText(fit(ctx, line.name, 420), margin, y + 22);
           ctx.fillStyle = line.payment === 'Paid' ? '#1f7a4d' : '#a56b12';
@@ -259,7 +286,7 @@
           ctx.font = '13px Segoe UI, Arial, sans-serif';
           var accountLine = (line.account || 'No account number') + (line.detail ? ' · ' + line.detail : '');
           ctx.fillText(fit(ctx, accountLine, 420), margin, y + 40);
-          ctx.fillStyle = '#0e2a3a';
+          ctx.fillStyle = c.navy;
           ctx.font = '700 14px Segoe UI, Arial, sans-serif';
           ctx.textAlign = 'right';
           ctx.fillText(line.amount, width - margin, y + 28);
@@ -270,18 +297,18 @@
         ctx.fillStyle = line.payment === 'Paid' ? '#1f7a4d' : '#a56b12';
         ctx.font = '700 14px Segoe UI, Arial, sans-serif';
         ctx.fillText(fit(ctx, line.payment, 140), 480, y + 26);
-        ctx.fillStyle = '#1b2b34';
+        ctx.fillStyle = c.ink;
         ctx.font = '700 14px Segoe UI, Arial, sans-serif';
         ctx.fillText(fit(ctx, line.due, 400), 680, y + 20);
         ctx.fillStyle = '#5d6e78';
         ctx.font = '12px Segoe UI, Arial, sans-serif';
         ctx.fillText(fit(ctx, line.period, 400), 680, y + 36);
-        ctx.fillStyle = '#1b2b34';
+        ctx.fillStyle = c.ink;
         ctx.font = '14px Segoe UI, Arial, sans-serif';
         ctx.textAlign = 'right';
         ctx.fillText(line.amount, width - margin, y + 26);
         ctx.textAlign = 'left';
-        ctx.strokeStyle = '#d5e1e6';
+        ctx.strokeStyle = c.line;
         ctx.beginPath();
         ctx.moveTo(margin, y + rowH - 1);
         ctx.lineTo(width - margin, y + rowH - 1);

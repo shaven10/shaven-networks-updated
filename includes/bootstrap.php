@@ -544,6 +544,8 @@ function shaven_migrate($conn) {
         KEY status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     shaven_notify_install($conn);
+    shaven_ledger_install($conn);
+    shaven_theme_install($conn);
 }
 
 function shaven_refresh_user($conn) {
@@ -2189,3 +2191,5 @@ require_once __DIR__ . '/bill_adjust.php';
 require_once __DIR__ . '/collection_records.php';
 require_once __DIR__ . '/notifications.php';
 require_once __DIR__ . '/db_tools.php';
+require_once __DIR__ . '/collector_ledger.php';
+require_once __DIR__ . '/theme.php';

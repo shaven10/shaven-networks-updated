@@ -11,7 +11,7 @@ function shaven_page_open($title, $heading) {
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
   <link rel="stylesheet" href="<?php echo h(shaven_url('plugins/fontawesome-free/css/all.min.css')); ?>">
   <link rel="stylesheet" href="<?php echo h(shaven_url('dist/css/adminlte.min.css')); ?>">
-  <link rel="stylesheet" href="<?php echo h(shaven_url('dist/css/shaven-theme.css')); ?>?v=<?php echo (int)@filemtime(__DIR__ . '/../dist/css/shaven-theme.css'); ?>">
+  <?php shaven_theme_assets(); ?>
   <?php if (!empty($GLOBALS['shaven_needs_records'])): ?>
   <link rel="stylesheet" href="<?php echo h(shaven_url('plugins/datatables-bs4/css/dataTables.bootstrap4.min.css')); ?>">
   <link rel="stylesheet" href="<?php echo h(shaven_url('plugins/datatables-responsive/css/responsive.bootstrap4.min.css')); ?>">
@@ -128,7 +128,31 @@ document.addEventListener('DOMContentLoaded', function () {
   var holder = document.getElementById('dash-data');
   if (!holder || typeof Chart === 'undefined') return;
   var data = JSON.parse(holder.textContent);
-  var colors = ['#1f7a8c', '#1f7a4d', '#c4a15a', '#a33d45', '#16465c', '#0e2a3a', '#5d8a96'];
+  function themeColor(name, fallback, alpha) {
+    var probe = document.createElement('span');
+    probe.style.display = 'none';
+    probe.style.color = 'var(' + name + ', ' + fallback + ')';
+    document.body.appendChild(probe);
+    var value = getComputedStyle(probe).color || fallback;
+    probe.remove();
+    var pixel = document.createElement('canvas').getContext('2d');
+    pixel.fillStyle = fallback;
+    pixel.fillStyle = value;
+    pixel.fillRect(0, 0, 1, 1);
+    var d = pixel.getImageData(0, 0, 1, 1).data;
+    return 'rgba(' + d[0] + ',' + d[1] + ',' + d[2] + ',' + (alpha || 1) + ')';
+  }
+  var accent = themeColor('--shaven-teal', '#1f7a8c');
+  var accentFill = themeColor('--shaven-teal', '#1f7a8c', 0.14);
+  var colors = [
+    accent,
+    '#1f7a4d',
+    themeColor('--shaven-gold', '#c4a15a'),
+    '#a33d45',
+    themeColor('--shaven-navy-soft', '#16465c'),
+    themeColor('--shaven-navy', '#0e2a3a'),
+    themeColor('--shaven-teal-dark', '#176274')
+  ];
   function moneyChart(id, labels, datasets) {
     var canvas = document.getElementById(id);
     if (!canvas) return;
@@ -150,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function () {
     { label: 'Unpaid', data: data.unpaid, borderColor: '#a33d45', backgroundColor: 'rgba(163,61,69,.10)', fill: true, lineTension: 0.2 }
   ]);
   moneyChart('dayChart', data.days, [
-    { label: 'Collected', data: data.dayAmounts, borderColor: '#1f7a8c', backgroundColor: 'rgba(31,122,140,.14)', fill: true, lineTension: 0.2 }
+    { label: 'Collected', data: data.dayAmounts, borderColor: accent, backgroundColor: accentFill, fill: true, lineTension: 0.2 }
   ]);
   function doughnut(id, labels, counts) {
     var canvas = document.getElementById(id);

@@ -33,6 +33,8 @@ function shaven_db_tools_preserve_tables() {
         'tbl_months',
         'tbl_mediums',
         'tbl_admin_level',
+        'tbl_collector_ledger',
+        'tbl_app_settings',
     ];
 }
 

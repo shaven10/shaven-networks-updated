@@ -15,6 +15,7 @@ if ($shavenNotifyConn instanceof mysqli && function_exists('shaven_notify_menu')
 }
 $shavenNotifyUnread = (int)$shavenNotifyMenu['unread'];
 $shavenNotifyLabel = $shavenNotifyUnread > 0 ? 'Notifications, ' . $shavenNotifyUnread . ' unread' : 'Notifications';
+shaven_theme_assets();
 ?>
 <nav class="main-header navbar navbar-expand navbar-white navbar-light">
   <ul class="navbar-nav">
